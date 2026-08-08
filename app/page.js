@@ -3,21 +3,68 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
 
-const clubs = ["Falcons", "Eagles", "Thunderbirds", "Griffins", "Phoenix"];
+const clubs = [
+  "Falcons",
+  "Eagles",
+  "Thunderbirds",
+  "Griffins",
+  "Phoenix"
+];
 
 const eventGroups = {
-  "Men's Team Sports": ["Cricket", "Football", "Volleyball", "Basketball", "Kho Kho"],
-  "Women's Team Sports": ["Cricket", "Throwball", "Basketball", "Kho Kho"],
-  "Men's Doubles": ["Tennis", "Table Tennis", "Badminton", "Carrom"],
-  "Women's Doubles": ["Tennis", "Table Tennis", "Badminton", "Carrom"],
-  "Mixed Doubles": ["Tennis"],
-  "Men's Individual": [
-    "Marathon", "100m", "200m", "400m",
-    "Long Jump", "Triple Jump", "Table Tennis", "Cycling"
+  "Men's Team Sports": [
+    "Cricket",
+    "Football",
+    "Volleyball",
+    "Basketball",
+    "Kho Kho"
   ],
+
+  "Women's Team Sports": [
+    "Cricket",
+    "Throwball",
+    "Basketball",
+    "Kho Kho"
+  ],
+
+  "Men's Doubles": [
+    "Tennis",
+    "Table Tennis",
+    "Badminton",
+    "Carrom"
+  ],
+
+  "Women's Doubles": [
+    "Tennis",
+    "Table Tennis",
+    "Badminton",
+    "Carrom"
+  ],
+
+  "Mixed Doubles": [
+    "Tennis"
+  ],
+
+  "Men's Individual": [
+    "Marathon",
+    "100m",
+    "200m",
+    "400m",
+    "Long Jump",
+    "Triple Jump",
+    "Table Tennis",
+    "Cycling"
+  ],
+
   "Women's Individual": [
-    "Marathon", "100m", "200m", "400m",
-    "Long Jump", "Triple Jump", "Table Tennis", "Cycling"
+    "Marathon",
+    "100m",
+    "200m",
+    "400m",
+    "Long Jump",
+    "Triple Jump",
+    "Table Tennis",
+    "Cycling"
   ]
 };
 
@@ -29,7 +76,11 @@ export default function Home() {
   async function load() {
     setLoading(true);
 
-    const [{ data: m }, { data: r }] = await Promise.all([
+    const [
+      { data: m, error: matchesError },
+      { data: r, error: resultsError },
+      { data: c, error: clubsError }
+    ] = await Promise.all([
       supabase
         .from("matches")
         .select(`
@@ -44,21 +95,67 @@ export default function Home() {
         `)
         .order("match_time", { ascending: true }),
 
+      /*
+        IMPORTANT:
+        Finalized results are stored in event_results,
+        not results.
+      */
       supabase
-        .from("results")
-        .select("club_id, points, clubs(name)")
+        .from("event_results")
+        .select("id, event_id, club_id, position, points")
+        .order("event_id")
+        .order("position"),
+
+      supabase
+        .from("clubs")
+        .select("id,name")
+        .order("id")
     ]);
+
+    if (matchesError) {
+      console.error("Matches error:", matchesError);
+    }
+
+    if (resultsError) {
+      console.error("Results error:", resultsError);
+    }
+
+    if (clubsError) {
+      console.error("Clubs error:", clubsError);
+    }
 
     setMatches(m || []);
 
+    /*
+      Build club ID → club name map.
+    */
+
+    const clubMap = {};
+
+    (c || []).forEach((club) => {
+      clubMap[club.id] = club.name;
+    });
+
+    /*
+      Calculate total points from event_results.
+    */
+
     const totals = {};
 
-    (r || []).forEach((x) => {
-      const name = x.clubs?.name;
-      if (name) {
-        totals[name] = (totals[name] || 0) + Number(x.points || 0);
+    (r || []).forEach((result) => {
+      const clubName = clubMap[result.club_id];
+
+      if (clubName) {
+        totals[clubName] =
+          (totals[clubName] || 0) +
+          Number(result.points || 0);
       }
     });
+
+    /*
+      Make sure every club appears,
+      even if it has zero points.
+    */
 
     clubs.forEach((club) => {
       totals[club] = totals[club] || 0;
@@ -73,16 +170,27 @@ export default function Home() {
 
     const channel = supabase
       .channel("euphoria-live")
+
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "matches" },
+        {
+          event: "*",
+          schema: "public",
+          table: "matches"
+        },
         load
       )
+
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "results" },
+        {
+          event: "*",
+          schema: "public",
+          table: "event_results"
+        },
         load
       )
+
       .subscribe();
 
     return () => {
@@ -91,20 +199,30 @@ export default function Home() {
   }, []);
 
   const leaderboard = [...clubs].sort(
-    (a, b) => (points[b] || 0) - (points[a] || 0)
+    (a, b) =>
+      (points[b] || 0) -
+      (points[a] || 0)
   );
 
   return (
     <main>
+
       <header>
         <div className="logo">
           EUPHORIA <span>SPORTS</span>
         </div>
-        <a href="/admin">ADMIN</a>
+
+        <a href="/admin">
+          ADMIN
+        </a>
       </header>
 
+
       <section className="hero">
-        <small>INTER-CLUB SPORTS CHAMPIONSHIP</small>
+
+        <small>
+          INTER-CLUB SPORTS CHAMPIONSHIP
+        </small>
 
         <h1>
           THE GAME
@@ -113,95 +231,218 @@ export default function Home() {
         </h1>
 
         <p>
-          Live scores, results and the race for the Euphoria Club Championship.
+          Live scores, results and the race
+          for the Euphoria Club Championship.
         </p>
+
       </section>
+
 
       <section className="wrap">
+
         <div className="grid">
 
+
+          {/* MATCHES */}
+
           <div className="card">
-            <div className="live">● LIVE / UPCOMING</div>
-            <h2>Matches</h2>
+
+            <div className="live">
+              ● LIVE / UPCOMING
+            </div>
+
+            <h2>
+              Matches
+            </h2>
 
             {loading ? (
-              <p>Loading...</p>
+
+              <p>
+                Loading...
+              </p>
+
             ) : matches.length === 0 ? (
-              <p className="muted">No matches added yet.</p>
+
+              <p className="muted">
+                No matches added yet.
+              </p>
+
             ) : (
+
               matches.map((match) => (
-                <div className="match" key={match.id}>
-                  <div>
-                    <b>{match.club_a?.name || "TBD"}</b>
-                    <strong>{match.score_a || "—"}</strong>
-                  </div>
+
+                <div
+                  className="match"
+                  key={match.id}
+                >
 
                   <div>
-                    <b>{match.club_b?.name || "TBD"}</b>
-                    <strong>{match.score_b || "—"}</strong>
+                    <b>
+                      {match.club_a?.name || "TBD"}
+                    </b>
+
+                    <strong>
+                      {match.score_a || "—"}
+                    </strong>
                   </div>
+
+
+                  <div>
+                    <b>
+                      {match.club_b?.name || "TBD"}
+                    </b>
+
+                    <strong>
+                      {match.score_b || "—"}
+                    </strong>
+                  </div>
+
 
                   <small>
-                    {match.events?.name} · {match.events?.gender} ·{" "}
+                    {match.events?.name}
+                    {" · "}
+                    {match.events?.gender}
+                    {" · "}
                     {match.status}
                   </small>
+
                 </div>
+
               ))
+
             )}
+
           </div>
+
+
+          {/* OVERALL POINTS */}
 
           <div className="card">
-            <h2>🏆 Overall Club Points</h2>
 
-            {leaderboard.map((club, index) => (
-              <div className="rank" key={club}>
-                <span>{index + 1}</span>
-                <b>{club}</b>
-                <strong>{points[club] || 0}</strong>
-              </div>
-            ))}
+            <h2>
+              🏆 Overall Club Points
+            </h2>
+
+            {leaderboard.map(
+              (club, index) => (
+
+                <div
+                  className="rank"
+                  key={club}
+                >
+
+                  <span>
+                    {index + 1}
+                  </span>
+
+                  <b>
+                    {club}
+                  </b>
+
+                  <strong>
+                    {points[club] || 0}
+                  </strong>
+
+                </div>
+
+              )
+            )}
+
           </div>
 
         </div>
 
+
+        {/* POINTS SYSTEM */}
+
         <div className="card section">
-          <h2>Points System</h2>
+
+          <h2>
+            Points System
+          </h2>
 
           <div className="rules">
-            <div>
-              <b>Team</b>
-              <span>🥇 25 · 🥈 15 · 🥉 7</span>
-            </div>
 
             <div>
-              <b>Doubles / Mixed</b>
-              <span>🥇 15 · 🥈 10 · 🥉 7</span>
+              <b>
+                Team
+              </b>
+
+              <span>
+                🥇 25 · 🥈 15 · 🥉 7
+              </span>
             </div>
 
+
             <div>
-              <b>Individual</b>
-              <span>🥇 10 · 🥈 7 · 🥉 5</span>
+              <b>
+                Doubles / Mixed
+              </b>
+
+              <span>
+                🥇 15 · 🥈 10 · 🥉 7
+              </span>
             </div>
+
+
+            <div>
+              <b>
+                Individual
+              </b>
+
+              <span>
+                🥇 10 · 🥈 7 · 🥉 5
+              </span>
+            </div>
+
           </div>
+
         </div>
 
+
+        {/* EVENTS */}
+
         <div className="card section">
-          <h2>Events</h2>
 
-          {Object.entries(eventGroups).map(([group, sports]) => (
-            <div className="eventGroup" key={group}>
-              <h3>{group}</h3>
+          <h2>
+            Events
+          </h2>
 
-              <div className="pills">
-                {sports.map((sport) => (
-                  <span key={sport}>{sport}</span>
-                ))}
+          {Object.entries(eventGroups).map(
+            ([group, sports]) => (
+
+              <div
+                className="eventGroup"
+                key={group}
+              >
+
+                <h3>
+                  {group}
+                </h3>
+
+                <div className="pills">
+
+                  {sports.map(
+                    (sport) => (
+
+                      <span key={sport}>
+                        {sport}
+                      </span>
+
+                    )
+                  )}
+
+                </div>
+
               </div>
-            </div>
-          ))}
+
+            )
+          )}
+
         </div>
 
       </section>
+
     </main>
   );
-                          }
+    }
