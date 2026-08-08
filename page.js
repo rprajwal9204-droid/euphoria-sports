@@ -1,99 +1,63 @@
  "use client";
 
 import { useEffect, useState } from "react";
-import { supabase } from "../lib/supabase";
+import { supabase } from "../../lib/supabase";
 
 const clubs = ["Falcons","Eagles","Thunderbirds","Griffins","Phoenix"];
 
-const eventGroups = {
-  "Men's Team Sports": ["Cricket","Football","Volleyball","Basketball","Kho Kho"],
-  "Women's Team Sports": ["Cricket","Throwball","Basketball","Kho Kho"],
-  "Men's Doubles": ["Tennis","Table Tennis","Badminton","Carrom"],
-  "Women's Doubles": ["Tennis","Table Tennis","Badminton","Carrom"],
-  "Mixed Doubles": ["Tennis"],
-  "Men's Individual": ["Marathon","100m","200m","400m","Long Jump","Triple Jump","Table Tennis","Cycling"],
-  "Women's Individual": ["Marathon","100m","200m","400m","Long Jump","Triple Jump","Table Tennis","Cycling"]
-};
+export default function Admin() {
+  const [events,setEvents]=useState([]);
+  const [matches,setMatches]=useState([]);
+  const [msg,setMsg]=useState("");
+  const [form,setForm]=useState({event_id:"",club_a_id:"",club_b_id:"",score_a:"",score_b:"",status:"Upcoming"});
+  const [clubIds,setClubIds]=useState({});
 
-export default function Home() {
-  const [matches,setMatches] = useState([]);
-  const [events,setEvents] = useState([]);
-  const [points,setPoints] = useState({});
-  const [loading,setLoading] = useState(true);
-
-  async function load() {
-    setLoading(true);
-    const [{data:m},{data:e},{data:r}] = await Promise.all([
-      supabase.from("matches").select("id,score_a,score_b,status,match_time,winner_club_id,events(name,gender,category),club_a:club_a_id(name),club_b:club_b_id(name)").order("match_time",{ascending:true}),
-      supabase.from("events").select("id,name,gender,category,points_type").order("id"),
-      supabase.from("results").select("club_id,points,clubs(name)")
+  async function load(){
+    const [{data:e},{data:c},{data:m}] = await Promise.all([
+      supabase.from("events").select("*").order("id"),
+      supabase.from("clubs").select("*").order("id"),
+      supabase.from("matches").select("id,score_a,score_b,status,events(name),club_a:club_a_id(name),club_b:club_b_id(name)").order("id",{ascending:false})
     ]);
-    setMatches(m || []);
-    setEvents(e || []);
-    const totals = {};
-    (r || []).forEach(x => {
-      const n = x.clubs?.name;
-      if(n) totals[n] = (totals[n] || 0) + Number(x.points || 0);
+    setEvents(e||[]); setMatches(m||[]);
+    const map={}; (c||[]).forEach(x=>map[x.name]=x.id); setClubIds(map);
+    if(!form.event_id && e?.[0]) setForm(f=>({...f,event_id:e[0].id}));
+  }
+  useEffect(()=>{load()},[]);
+
+  async function addMatch(e){
+    e.preventDefault(); setMsg("");
+    const {error}=await supabase.from("matches").insert({
+      event_id:Number(form.event_id),
+      club_a_id:Number(form.club_a_id),
+      club_b_id:Number(form.club_b_id),
+      score_a:form.score_a, score_b:form.score_b, status:form.status
     });
-    clubs.forEach(c => totals[c] = totals[c] || 0);
-    setPoints(totals);
-    setLoading(false);
+    setMsg(error ? error.message : "Match created."); if(!error){setForm(f=>({...f,score_a:"",score_b:""}));load();}
   }
 
-  useEffect(() => {
-    load();
-    const channel = supabase.channel("euphoria-live")
-      .on("postgres_changes",{event:"*",schema:"public",table:"matches"},load)
-      .on("postgres_changes",{event:"*",schema:"public",table:"results"},load)
-      .subscribe();
-    return () => supabase.removeChannel(channel);
-  }, []);
+  async function updateMatch(id, patch){
+    const {error}=await supabase.from("matches").update(patch).eq("id",id);
+    setMsg(error ? error.message : "Saved."); if(!error) load();
+  }
 
-  const leaderboard = [...clubs].sort((a,b)=>(points[b]||0)-(points[a]||0));
-
-  return (
-    <main>
-      <header><div className="logo">EUPHORIA <span>SPORTS</span></div><a href="/admin">ADMIN</a></header>
-      <section className="hero">
-        <small>INTER-CLUB SPORTS CHAMPIONSHIP</small>
-        <h1>THE GAME<br/>IS ON.</h1>
-        <p>Live scores, results and the race for the Euphoria Club Championship.</p>
-      </section>
-
-      <section className="wrap">
-        <div className="grid">
-          <div className="card">
-            <div className="live">● LIVE / UPCOMING</div><h2>Matches</h2>
-            {loading ? <p>Loading…</p> : matches.length === 0 ? <p className="muted">No matches added yet.</p> :
-              matches.map(m => <div className="match" key={m.id}>
-                <div><b>{m.club_a?.name || "TBD"}</b><strong>{m.score_a || "—"}</strong></div>
-                <div><b>{m.club_b?.name || "TBD"}</b><strong>{m.score_b || "—"}</strong></div>
-                <small>{m.events?.name} · {m.events?.gender} · {m.status}</small>
-              </div>)}
-          </div>
-
-          <div className="card">
-            <h2>🏆 Overall Club Points</h2>
-            {leaderboard.map((c,i)=><div className="rank" key={c}><span>{i+1}</span><b>{c}</b><strong>{points[c]||0}</strong></div>)}
-          </div>
-        </div>
-
-        <div className="card section">
-          <h2>Points System</h2>
-          <div className="rules">
-            <div><b>Team</b><span>🥇 25 · 🥈 15 · 🥉 7</span></div>
-            <div><b>Doubles / Mixed</b><span>🥇 15 · 🥈 10 · 🥉 7</span></div>
-            <div><b>Individual</b><span>🥇 10 · 🥈 7 · 🥉 5</span></div>
-          </div>
-        </div>
-
-        <div className="card section">
-          <h2>Events</h2>
-          {Object.entries(eventGroups).map(([group, list]) =>
-            <div className="eventGroup" key={group}><h3>{group}</h3><div className="pills">{list.map(x=><span key={x}>{x}</span>)}</div></div>
-          )}
-        </div>
-      </section>
-    </main>
-  );
+  return <main><header><div className="logo">EUPHORIA <span>ADMIN</span></div><a href="/">PUBLIC SITE</a></header>
+  <section className="wrap admin">
+    <div className="card"><h1>Admin Dashboard</h1><p className="muted">Create matches and update live scores. Results/points finalization will be added next.</p>
+      <form onSubmit={addMatch}>
+        <label>Event<select value={form.event_id} onChange={e=>setForm({...form,event_id:e.target.value})}>{events.map(x=><option key={x.id} value={x.id}>{x.gender} · {x.name} · {x.category}</option>)}</select></label>
+        <label>Club A<select value={form.club_a_id} onChange={e=>setForm({...form,club_a_id:e.target.value})}><option value="">Select</option>{clubs.map(c=><option key={c} value={clubIds[c]}>{c}</option>)}</select></label>
+        <label>Club B<select value={form.club_b_id} onChange={e=>setForm({...form,club_b_id:e.target.value})}><option value="">Select</option>{clubs.map(c=><option key={c} value={clubIds[c]}>{c}</option>)}</select></label>
+        <div className="two"><label>Score A<input value={form.score_a} onChange={e=>setForm({...form,score_a:e.target.value})}/></label><label>Score B<input value={form.score_b} onChange={e=>setForm({...form,score_b:e.target.value})}/></label></div>
+        <label>Status<select value={form.status} onChange={e=>setForm({...form,status:e.target.value})}><option>Upcoming</option><option>Live</option><option>Final</option></select></label>
+        <button>Create Match</button>
+      </form>
+      {msg && <p>{msg}</p>}
+    </div>
+    <div className="card"><h2>Existing Matches</h2>{matches.map(m=><div className="adminMatch" key={m.id}>
+      <b>{m.club_a?.name} vs {m.club_b?.name}</b><small>{m.events?.name}</small>
+      <div className="two"><input defaultValue={m.score_a||""} id={"a"+m.id}/><input defaultValue={m.score_b||""} id={"b"+m.id}/></div>
+      <select defaultValue={m.status} onChange={e=>updateMatch(m.id,{status:e.target.value})}><option>Upcoming</option><option>Live</option><option>Final</option></select>
+      <button onClick={()=>updateMatch(m.id,{score_a:document.getElementById("a"+m.id).value,score_b:document.getElementById("b"+m.id).value})}>Save Score</button>
+    </div>)}</div>
+  </section></main>
 }
