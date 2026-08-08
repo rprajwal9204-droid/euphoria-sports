@@ -4,11 +4,11 @@ import { useEffect, useState } from "react";
 import { supabase } from "../../lib/supabase";
 
 const clubs = [
-  "Falcons",
-  "Eagles",
-  "Thunderbirds",
-  "Griffins",
-  "Phoenix"
+  { name: "Falcons", id: 1 },
+  { name: "Eagles", id: 2 },
+  { name: "Thunderbirds", id: 3 },
+  { name: "Griffins", id: 4 },
+  { name: "Phoenix", id: 5 }
 ];
 
 function getPoints(category, position) {
@@ -40,8 +40,6 @@ export default function Admin() {
     status: "Upcoming"
   });
 
-  const [clubIds, setClubIds] = useState({});
-
   const [resultForm, setResultForm] = useState({
     event_id: "",
     first: "",
@@ -51,18 +49,12 @@ export default function Admin() {
 
   async function load() {
     const [
-      { data: e },
-      { data: c },
-      { data: m },
-      { data: r }
+      { data: e, error: eventsError },
+      { data: m, error: matchesError },
+      { data: r, error: resultsError }
     ] = await Promise.all([
       supabase
         .from("events")
-        .select("*")
-        .order("id"),
-
-      supabase
-        .from("clubs")
         .select("*")
         .order("id"),
 
@@ -75,24 +67,61 @@ export default function Admin() {
 
       supabase
         .from("event_results")
-        .select(
-          "id,event_id,club_id,position,points,events(name),clubs(name)"
-        )
+        .select("id,event_id,club_id,position,points")
         .order("event_id")
         .order("position")
     ]);
 
+    if (eventsError) {
+      setMsg("Events error: " + eventsError.message);
+    }
+
+    if (matchesError) {
+      setMsg("Matches error: " + matchesError.message);
+    }
+
+    if (resultsError) {
+      setMsg("Results error: " + resultsError.message);
+    }
+
     setEvents(e || []);
     setMatches(m || []);
-    setResults(r || []);
 
-    const map = {};
+    /*
+      Build event and club maps.
 
-    (c || []).forEach((x) => {
-      map[x.name] = x.id;
+      We already confirmed:
+      1 = Falcons
+      2 = Eagles
+      3 = Thunderbirds
+      4 = Griffins
+      5 = Phoenix
+    */
+
+    const eventMap = {};
+
+    (e || []).forEach((event) => {
+      eventMap[event.id] = event;
     });
 
-    setClubIds(map);
+    const clubMap = {};
+
+    clubs.forEach((club) => {
+      clubMap[club.id] = club;
+    });
+
+    /*
+      Convert raw event_results rows into the format
+      expected by the display below.
+    */
+
+    const formattedResults = (r || []).map((result) => ({
+      ...result,
+      events: eventMap[result.event_id] || null,
+      clubs: clubMap[result.club_id] || null
+    }));
+
+    setResults(formattedResults);
 
     if (!form.event_id && e?.[0]) {
       setForm((f) => ({
@@ -109,6 +138,21 @@ export default function Admin() {
   async function addMatch(e) {
     e.preventDefault();
     setMsg("");
+
+    if (!form.event_id) {
+      setMsg("Please select an event.");
+      return;
+    }
+
+    if (!form.club_a_id || !form.club_b_id) {
+      setMsg("Please select Club A and Club B.");
+      return;
+    }
+
+    if (form.club_a_id === form.club_b_id) {
+      setMsg("Club A and Club B must be different.");
+      return;
+    }
 
     const { error } = await supabase
       .from("matches")
@@ -151,8 +195,12 @@ export default function Admin() {
     e.preventDefault();
     setMsg("");
 
+    if (!resultForm.event_id) {
+      setMsg("Please select an event.");
+      return;
+    }
+
     if (
-      !resultForm.event_id ||
       !resultForm.first ||
       !resultForm.second ||
       !resultForm.third
@@ -172,6 +220,30 @@ export default function Admin() {
       return;
     }
 
+    const eventId = Number(resultForm.event_id);
+    const firstClubId = Number(resultForm.first);
+    const secondClubId = Number(resultForm.second);
+    const thirdClubId = Number(resultForm.third);
+
+    if (
+      !Number.isInteger(eventId) ||
+      eventId <= 0 ||
+      !Number.isInteger(firstClubId) ||
+      firstClubId <= 0 ||
+      !Number.isInteger(secondClubId) ||
+      secondClubId <= 0 ||
+      !Number.isInteger(thirdClubId) ||
+      thirdClubId <= 0
+    ) {
+      setMsg(
+        `Invalid selection. Event: ${resultForm.event_id}, ` +
+        `1st: ${resultForm.first}, ` +
+        `2nd: ${resultForm.second}, ` +
+        `3rd: ${resultForm.third}`
+      );
+      return;
+    }
+
     const event = events.find(
       (x) => String(x.id) === String(resultForm.event_id)
     );
@@ -183,20 +255,20 @@ export default function Admin() {
 
     const rows = [
       {
-        event_id: Number(resultForm.event_id),
-        club_id: Number(resultForm.first),
+        event_id: eventId,
+        club_id: firstClubId,
         position: 1,
         points: getPoints(event.category, 1)
       },
       {
-        event_id: Number(resultForm.event_id),
-        club_id: Number(resultForm.second),
+        event_id: eventId,
+        club_id: secondClubId,
         position: 2,
         points: getPoints(event.category, 2)
       },
       {
-        event_id: Number(resultForm.event_id),
-        club_id: Number(resultForm.third),
+        event_id: eventId,
+        club_id: thirdClubId,
         position: 3,
         points: getPoints(event.category, 3)
       }
@@ -209,7 +281,7 @@ export default function Admin() {
       });
 
     if (error) {
-      setMsg(error.message);
+      setMsg("Finalize error: " + error.message);
       return;
     }
 
@@ -282,9 +354,9 @@ export default function Admin() {
               >
                 <option value="">Select</option>
 
-                {clubs.map((c) => (
-                  <option key={c} value={clubIds[c]}>
-                    {c}
+                {clubs.map((club) => (
+                  <option key={club.id} value={club.id}>
+                    {club.name}
                   </option>
                 ))}
               </select>
@@ -304,9 +376,9 @@ export default function Admin() {
               >
                 <option value="">Select</option>
 
-                {clubs.map((c) => (
-                  <option key={c} value={clubIds[c]}>
-                    {c}
+                {clubs.map((club) => (
+                  <option key={club.id} value={club.id}>
+                    {club.name}
                   </option>
                 ))}
               </select>
@@ -424,9 +496,9 @@ export default function Admin() {
                   Select Club
                 </option>
 
-                {clubs.map((c) => (
-                  <option key={c} value={clubIds[c]}>
-                    {c}
+                {clubs.map((club) => (
+                  <option key={club.id} value={club.id}>
+                    {club.name}
                   </option>
                 ))}
               </select>
@@ -449,9 +521,9 @@ export default function Admin() {
                   Select Club
                 </option>
 
-                {clubs.map((c) => (
-                  <option key={c} value={clubIds[c]}>
-                    {c}
+                {clubs.map((club) => (
+                  <option key={club.id} value={club.id}>
+                    {club.name}
                   </option>
                 ))}
               </select>
@@ -474,9 +546,9 @@ export default function Admin() {
                   Select Club
                 </option>
 
-                {clubs.map((c) => (
-                  <option key={c} value={clubIds[c]}>
-                    {c}
+                {clubs.map((club) => (
+                  <option key={club.id} value={club.id}>
+                    {club.name}
                   </option>
                 ))}
               </select>
@@ -488,7 +560,6 @@ export default function Admin() {
             </button>
 
           </form>
-
         </div>
 
 
@@ -581,7 +652,7 @@ export default function Admin() {
         </div>
 
 
-        {/* RECENT RESULTS */}
+        {/* FINALIZED RESULTS */}
 
         <div className="card">
 
@@ -603,11 +674,12 @@ export default function Admin() {
                   : r.position === 2
                   ? "🥈"
                   : "🥉"}{" "}
-                {r.clubs?.name}
+                {r.clubs?.name || "Unknown Club"}
               </b>
 
               <small>
-                {r.events?.name} — {r.points} points
+                {r.events?.name || "Unknown Event"} —{" "}
+                {r.points} points
               </small>
 
             </div>
@@ -619,4 +691,4 @@ export default function Admin() {
       </section>
     </main>
   );
-}
+          }
