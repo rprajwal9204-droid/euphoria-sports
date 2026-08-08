@@ -92,13 +92,14 @@ export default function Home() {
         .from("matches")
         .select(`
           id,
+          club_a_id,
+          club_b_id,
           score_a,
           score_b,
           status,
           match_time,
-          events(name, gender, category),
-          club_a:club_a_id(name),
-          club_b:club_b_id(name)
+          event_id,
+          events(name, gender, category)
         `)
         .order("match_time", {
           ascending: true
@@ -127,21 +128,29 @@ export default function Home() {
       );
     }
 
-    setMatches(m || []);
+    /*
+      Convert club IDs to names.
+    */
+
+    const formattedMatches = (m || []).map(
+      (match) => ({
+        ...match,
+
+        clubAName:
+          clubMap[Number(match.club_a_id)] ||
+          "TBD",
+
+        clubBName:
+          clubMap[Number(match.club_b_id)] ||
+          "TBD"
+      })
+    );
+
+    setMatches(formattedMatches);
+
 
     /*
-      Calculate total points.
-
-      We use the club_id directly because
-      the public clubs query was being blocked
-      by RLS.
-
-      Club IDs:
-      1 = Falcons
-      2 = Eagles
-      3 = Thunderbirds
-      4 = Griffins
-      5 = Phoenix
+      Calculate overall club points.
     */
 
     const totals = {};
@@ -151,6 +160,7 @@ export default function Home() {
     });
 
     (r || []).forEach((result) => {
+
       const clubName =
         clubMap[Number(result.club_id)];
 
@@ -158,6 +168,7 @@ export default function Home() {
         totals[clubName] +=
           Number(result.points || 0);
       }
+
     });
 
     setPoints(totals);
@@ -165,7 +176,9 @@ export default function Home() {
     setLoading(false);
   }
 
+
   useEffect(() => {
+
     load();
 
     const channel = supabase
@@ -196,13 +209,17 @@ export default function Home() {
     return () => {
       supabase.removeChannel(channel);
     };
+
   }, []);
 
-  const leaderboard = [...clubs].sort(
-    (a, b) =>
-      (points[b] || 0) -
-      (points[a] || 0)
-  );
+
+  const leaderboard =
+    [...clubs].sort(
+      (a, b) =>
+        (points[b] || 0) -
+        (points[a] || 0)
+    );
+
 
   return (
     <main>
@@ -244,8 +261,6 @@ export default function Home() {
       </section>
 
 
-      {/* MAIN CONTENT */}
-
       <section className="wrap">
 
         <div className="grid">
@@ -262,6 +277,7 @@ export default function Home() {
             <h2>
               Matches
             </h2>
+
 
             {loading ? (
 
@@ -287,8 +303,7 @@ export default function Home() {
                   <div>
 
                     <b>
-                      {match.club_a?.name ||
-                        "TBD"}
+                      {match.clubAName}
                     </b>
 
                     <strong>
@@ -301,8 +316,7 @@ export default function Home() {
                   <div>
 
                     <b>
-                      {match.club_b?.name ||
-                        "TBD"}
+                      {match.clubBName}
                     </b>
 
                     <strong>
@@ -473,4 +487,4 @@ export default function Home() {
 
     </main>
   );
-        }
+}
