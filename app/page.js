@@ -3,6 +3,14 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
 
+const clubMap = {
+  1: "Falcons",
+  2: "Eagles",
+  3: "Thunderbirds",
+  4: "Griffins",
+  5: "Phoenix"
+};
+
 const clubs = [
   "Falcons",
   "Eagles",
@@ -19,27 +27,32 @@ const eventGroups = {
     "Basketball",
     "Kho Kho"
   ],
+
   "Women's Team Sports": [
     "Cricket",
     "Throwball",
     "Basketball",
     "Kho Kho"
   ],
+
   "Men's Doubles": [
     "Tennis",
     "Table Tennis",
     "Badminton",
     "Carrom"
   ],
+
   "Women's Doubles": [
     "Tennis",
     "Table Tennis",
     "Badminton",
     "Carrom"
   ],
+
   "Mixed Doubles": [
     "Tennis"
   ],
+
   "Men's Individual": [
     "Marathon",
     "100m",
@@ -50,6 +63,7 @@ const eventGroups = {
     "Table Tennis",
     "Cycling"
   ],
+
   "Women's Individual": [
     "Marathon",
     "100m",
@@ -67,29 +81,12 @@ export default function Home() {
   const [points, setPoints] = useState({});
   const [loading, setLoading] = useState(true);
 
-  // DEBUG STATE
-  const [debugResults, setDebugResults] = useState([]);
-  const [debugClubs, setDebugClubs] = useState([]);
-  const [debugResultsError, setDebugResultsError] = useState("");
-  const [debugClubsError, setDebugClubsError] = useState("");
-  const [debugMatchesError, setDebugMatchesError] = useState("");
-
   async function load() {
     setLoading(true);
 
     const [
-      {
-        data: m,
-        error: matchesError
-      },
-      {
-        data: r,
-        error: resultsError
-      },
-      {
-        data: c,
-        error: clubsError
-      }
+      { data: m, error: matchesError },
+      { data: r, error: resultsError }
     ] = await Promise.all([
       supabase
         .from("matches")
@@ -113,67 +110,54 @@ export default function Home() {
           "id,event_id,club_id,position,points"
         )
         .order("event_id")
-        .order("position"),
-
-      supabase
-        .from("clubs")
-        .select("id,name")
-        .order("id")
+        .order("position")
     ]);
 
-    // SAVE DEBUG DATA
+    if (matchesError) {
+      console.error(
+        "Matches error:",
+        matchesError
+      );
+    }
 
-    setDebugResults(r || []);
-    setDebugClubs(c || []);
-
-    setDebugResultsError(
-      resultsError?.message || ""
-    );
-
-    setDebugClubsError(
-      clubsError?.message || ""
-    );
-
-    setDebugMatchesError(
-      matchesError?.message || ""
-    );
+    if (resultsError) {
+      console.error(
+        "Event results error:",
+        resultsError
+      );
+    }
 
     setMatches(m || []);
 
     /*
-      BUILD CLUB ID → NAME MAP
-    */
+      Calculate total points.
 
-    const clubMap = {};
+      We use the club_id directly because
+      the public clubs query was being blocked
+      by RLS.
 
-    (c || []).forEach((club) => {
-      clubMap[club.id] = club.name;
-    });
-
-    /*
-      CALCULATE TOTAL POINTS
+      Club IDs:
+      1 = Falcons
+      2 = Eagles
+      3 = Thunderbirds
+      4 = Griffins
+      5 = Phoenix
     */
 
     const totals = {};
 
-    (r || []).forEach((result) => {
-      const clubName =
-        clubMap[result.club_id];
-
-      if (clubName) {
-        totals[clubName] =
-          (totals[clubName] || 0) +
-          Number(result.points || 0);
-      }
+    clubs.forEach((club) => {
+      totals[club] = 0;
     });
 
-    /*
-      MAKE SURE ALL CLUBS APPEAR
-    */
+    (r || []).forEach((result) => {
+      const clubName =
+        clubMap[Number(result.club_id)];
 
-    clubs.forEach((club) => {
-      totals[club] =
-        totals[club] || 0;
+      if (clubName) {
+        totals[clubName] +=
+          Number(result.points || 0);
+      }
     });
 
     setPoints(totals);
@@ -214,12 +198,11 @@ export default function Home() {
     };
   }, []);
 
-  const leaderboard =
-    [...clubs].sort(
-      (a, b) =>
-        (points[b] || 0) -
-        (points[a] || 0)
-    );
+  const leaderboard = [...clubs].sort(
+    (a, b) =>
+      (points[b] || 0) -
+      (points[a] || 0)
+  );
 
   return (
     <main>
@@ -261,7 +244,7 @@ export default function Home() {
       </section>
 
 
-      {/* CONTENT */}
+      {/* MAIN CONTENT */}
 
       <section className="wrap">
 
@@ -302,6 +285,7 @@ export default function Home() {
                 >
 
                   <div>
+
                     <b>
                       {match.club_a?.name ||
                         "TBD"}
@@ -310,9 +294,12 @@ export default function Home() {
                     <strong>
                       {match.score_a || "—"}
                     </strong>
+
                   </div>
 
+
                   <div>
+
                     <b>
                       {match.club_b?.name ||
                         "TBD"}
@@ -321,14 +308,22 @@ export default function Home() {
                     <strong>
                       {match.score_b || "—"}
                     </strong>
+
                   </div>
 
+
                   <small>
+
                     {match.events?.name}
+
                     {" · "}
+
                     {match.events?.gender}
+
                     {" · "}
+
                     {match.status}
+
                   </small>
 
                 </div>
@@ -378,228 +373,6 @@ export default function Home() {
         </div>
 
 
-        {/* DEBUG */}
-
-        <div
-          className="card section"
-          style={{
-            border:
-              "2px solid #ff5570"
-          }}
-        >
-
-          <h2>
-            🔧 Debug — Supabase Data
-          </h2>
-
-          <p className="muted">
-            Temporary diagnostic section.
-            This shows exactly what the public
-            website receives from Supabase.
-          </p>
-
-
-          {/* MATCH ERROR */}
-
-          <h3>
-            Matches
-          </h3>
-
-          {debugMatchesError ? (
-
-            <p>
-              ❌ {debugMatchesError}
-            </p>
-
-          ) : (
-
-            <p>
-              ✅ Matches loaded:
-              {" "}
-              {matches.length}
-            </p>
-
-          )}
-
-
-          {/* EVENT RESULTS */}
-
-          <h3>
-            Event Results Received:
-            {" "}
-            {debugResults.length}
-          </h3>
-
-          {debugResultsError && (
-
-            <p>
-              ❌ Event Results Error:
-              {" "}
-              {debugResultsError}
-            </p>
-
-          )}
-
-          {debugResults.length === 0 ? (
-
-            <p className="muted">
-              No event_results rows received
-              by the public website.
-            </p>
-
-          ) : (
-
-            debugResults.map(
-              (result) => (
-
-                <div
-                  key={result.id}
-                  style={{
-                    padding: "12px",
-                    marginBottom: "8px",
-                    background:
-                      "#1c1c27",
-                    borderRadius:
-                      "10px"
-                  }}
-                >
-
-                  <b>
-                    Result ID:
-                  </b>{" "}
-                  {result.id}
-
-                  <br />
-
-                  <b>
-                    Event ID:
-                  </b>{" "}
-                  {result.event_id}
-
-                  <br />
-
-                  <b>
-                    Club ID:
-                  </b>{" "}
-                  {result.club_id}
-
-                  <br />
-
-                  <b>
-                    Position:
-                  </b>{" "}
-                  {result.position}
-
-                  <br />
-
-                  <b>
-                    Points:
-                  </b>{" "}
-                  {result.points}
-
-                </div>
-
-              )
-            )
-
-          )}
-
-
-          {/* CLUBS */}
-
-          <h3>
-            Clubs Received:
-            {" "}
-            {debugClubs.length}
-          </h3>
-
-          {debugClubsError && (
-
-            <p>
-              ❌ Clubs Error:
-              {" "}
-              {debugClubsError}
-            </p>
-
-          )}
-
-          {debugClubs.length === 0 ? (
-
-            <p className="muted">
-              No clubs received by the
-              public website.
-            </p>
-
-          ) : (
-
-            debugClubs.map(
-              (club) => (
-
-                <div
-                  key={club.id}
-                  style={{
-                    padding: "8px",
-                    marginBottom: "5px",
-                    background:
-                      "#1c1c27",
-                    borderRadius:
-                      "8px"
-                  }}
-                >
-
-                  ID:
-                  {" "}
-                  <b>
-                    {club.id}
-                  </b>
-
-                  {" — "}
-
-                  Name:
-                  {" "}
-                  <b>
-                    {club.name}
-                  </b>
-
-                </div>
-
-              )
-            )
-
-          )}
-
-
-          {/* CALCULATED POINTS */}
-
-          <h3>
-            Calculated Points
-          </h3>
-
-          {clubs.map(
-            (club) => (
-
-              <div
-                key={club}
-                style={{
-                  padding:
-                    "6px 0"
-                }}
-              >
-
-                {club}
-                {" → "}
-                <b>
-                  {points[club] || 0}
-                </b>
-
-              </div>
-
-            )
-          )}
-
-        </div>
-
-
         {/* POINTS SYSTEM */}
 
         <div className="card section">
@@ -611,6 +384,7 @@ export default function Home() {
           <div className="rules">
 
             <div>
+
               <b>
                 Team
               </b>
@@ -618,9 +392,12 @@ export default function Home() {
               <span>
                 🥇 25 · 🥈 15 · 🥉 7
               </span>
+
             </div>
 
+
             <div>
+
               <b>
                 Doubles / Mixed
               </b>
@@ -628,9 +405,12 @@ export default function Home() {
               <span>
                 🥇 15 · 🥈 10 · 🥉 7
               </span>
+
             </div>
 
+
             <div>
+
               <b>
                 Individual
               </b>
@@ -638,6 +418,7 @@ export default function Home() {
               <span>
                 🥇 10 · 🥈 7 · 🥉 5
               </span>
+
             </div>
 
           </div>
@@ -653,9 +434,7 @@ export default function Home() {
             Events
           </h2>
 
-          {Object.entries(
-            eventGroups
-          ).map(
+          {Object.entries(eventGroups).map(
             ([group, sports]) => (
 
               <div
@@ -694,4 +473,4 @@ export default function Home() {
 
     </main>
   );
-}
+        }
