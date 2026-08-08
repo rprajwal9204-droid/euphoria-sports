@@ -128,10 +128,6 @@ export default function Home() {
       );
     }
 
-    /*
-      Convert club IDs to names.
-    */
-
     const formattedMatches = (m || []).map(
       (match) => ({
         ...match,
@@ -150,7 +146,7 @@ export default function Home() {
 
 
     /*
-      Calculate overall club points.
+      CALCULATE OVERALL POINTS
     */
 
     const totals = {};
@@ -160,7 +156,6 @@ export default function Home() {
     });
 
     (r || []).forEach((result) => {
-
       const clubName =
         clubMap[Number(result.club_id)];
 
@@ -168,7 +163,6 @@ export default function Home() {
         totals[clubName] +=
           Number(result.points || 0);
       }
-
     });
 
     setPoints(totals);
@@ -178,7 +172,6 @@ export default function Home() {
 
 
   useEffect(() => {
-
     load();
 
     const channel = supabase
@@ -209,16 +202,120 @@ export default function Home() {
     return () => {
       supabase.removeChannel(channel);
     };
-
   }, []);
 
 
-  const leaderboard =
-    [...clubs].sort(
-      (a, b) =>
-        (points[b] || 0) -
-        (points[a] || 0)
+  /*
+    SEPARATE MATCHES BY STATUS
+  */
+
+  const liveMatches = matches.filter(
+    (match) =>
+      String(match.status).toLowerCase() ===
+      "live"
+  );
+
+  const upcomingMatches = matches.filter(
+    (match) =>
+      String(match.status).toLowerCase() ===
+      "upcoming"
+  );
+
+  const completedMatches = matches.filter(
+    (match) =>
+      String(match.status).toLowerCase() ===
+      "final"
+  );
+
+
+  /*
+    LEADERBOARD
+  */
+
+  const leaderboard = [...clubs].sort(
+    (a, b) =>
+      (points[b] || 0) -
+      (points[a] || 0)
+  );
+
+
+  /*
+    MATCH CARD
+  */
+
+  function MatchCard({ match }) {
+    return (
+      <div className="match">
+
+        <div>
+          <b>
+            {match.clubAName}
+          </b>
+
+          <strong>
+            {match.score_a || "—"}
+          </strong>
+        </div>
+
+        <div>
+          <b>
+            {match.clubBName}
+          </b>
+
+          <strong>
+            {match.score_b || "—"}
+          </strong>
+        </div>
+
+        <small>
+          {match.events?.name}
+          {" · "}
+          {match.events?.gender}
+          {" · "}
+          {match.events?.category}
+        </small>
+
+      </div>
     );
+  }
+
+
+  /*
+    MATCH SECTION
+  */
+
+  function MatchSection({
+    title,
+    matches,
+    emptyText
+  }) {
+    return (
+      <div className="card section">
+
+        <h2>
+          {title}
+        </h2>
+
+        {matches.length === 0 ? (
+
+          <p className="muted">
+            {emptyText}
+          </p>
+
+        ) : (
+
+          matches.map((match) => (
+            <MatchCard
+              key={match.id}
+              match={match}
+            />
+          ))
+
+        )}
+
+      </div>
+    );
+  }
 
 
   return (
@@ -263,126 +360,88 @@ export default function Home() {
 
       <section className="wrap">
 
-        <div className="grid">
 
+        {/* LIVE */}
 
-          {/* MATCHES */}
-
-          <div className="card">
-
-            <div className="live">
-              ● LIVE / UPCOMING
-            </div>
-
-            <h2>
-              Matches
-            </h2>
-
-
-            {loading ? (
-
-              <p>
-                Loading...
-              </p>
-
-            ) : matches.length === 0 ? (
-
-              <p className="muted">
-                No matches added yet.
-              </p>
-
-            ) : (
-
-              matches.map((match) => (
-
-                <div
-                  className="match"
-                  key={match.id}
-                >
-
-                  <div>
-
-                    <b>
-                      {match.clubAName}
-                    </b>
-
-                    <strong>
-                      {match.score_a || "—"}
-                    </strong>
-
-                  </div>
-
-
-                  <div>
-
-                    <b>
-                      {match.clubBName}
-                    </b>
-
-                    <strong>
-                      {match.score_b || "—"}
-                    </strong>
-
-                  </div>
-
-
-                  <small>
-
-                    {match.events?.name}
-
-                    {" · "}
-
-                    {match.events?.gender}
-
-                    {" · "}
-
-                    {match.status}
-
-                  </small>
-
-                </div>
-
-              ))
-
-            )}
-
-          </div>
-
-
-          {/* LEADERBOARD */}
+        {loading ? (
 
           <div className="card">
 
-            <h2>
-              🏆 Overall Club Points
-            </h2>
-
-            {leaderboard.map(
-              (club, index) => (
-
-                <div
-                  className="rank"
-                  key={club}
-                >
-
-                  <span>
-                    {index + 1}
-                  </span>
-
-                  <b>
-                    {club}
-                  </b>
-
-                  <strong>
-                    {points[club] || 0}
-                  </strong>
-
-                </div>
-
-              )
-            )}
+            <p>
+              Loading matches...
+            </p>
 
           </div>
+
+        ) : (
+
+          <MatchSection
+            title="🔴 LIVE"
+            matches={liveMatches}
+            emptyText="No matches are live right now."
+          />
+
+        )}
+
+
+        {/* UPCOMING */}
+
+        {!loading && (
+
+          <MatchSection
+            title="🟡 UPCOMING"
+            matches={upcomingMatches}
+            emptyText="No upcoming matches."
+          />
+
+        )}
+
+
+        {/* COMPLETED */}
+
+        {!loading && (
+
+          <MatchSection
+            title="✅ COMPLETED"
+            matches={completedMatches}
+            emptyText="No completed matches yet."
+          />
+
+        )}
+
+
+        {/* LEADERBOARD */}
+
+        <div className="card section">
+
+          <h2>
+            🏆 Overall Club Points
+          </h2>
+
+          {leaderboard.map(
+            (club, index) => (
+
+              <div
+                className="rank"
+                key={club}
+              >
+
+                <span>
+                  {index + 1}
+                </span>
+
+                <b>
+                  {club}
+                </b>
+
+                <strong>
+                  {points[club] || 0}
+                </strong>
+
+              </div>
+
+            )
+          )}
 
         </div>
 
@@ -409,7 +468,6 @@ export default function Home() {
 
             </div>
 
-
             <div>
 
               <b>
@@ -421,7 +479,6 @@ export default function Home() {
               </span>
 
             </div>
-
 
             <div>
 
