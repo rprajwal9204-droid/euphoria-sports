@@ -19,32 +19,27 @@ const eventGroups = {
     "Basketball",
     "Kho Kho"
   ],
-
   "Women's Team Sports": [
     "Cricket",
     "Throwball",
     "Basketball",
     "Kho Kho"
   ],
-
   "Men's Doubles": [
     "Tennis",
     "Table Tennis",
     "Badminton",
     "Carrom"
   ],
-
   "Women's Doubles": [
     "Tennis",
     "Table Tennis",
     "Badminton",
     "Carrom"
   ],
-
   "Mixed Doubles": [
     "Tennis"
   ],
-
   "Men's Individual": [
     "Marathon",
     "100m",
@@ -55,7 +50,6 @@ const eventGroups = {
     "Table Tennis",
     "Cycling"
   ],
-
   "Women's Individual": [
     "Marathon",
     "100m",
@@ -73,13 +67,29 @@ export default function Home() {
   const [points, setPoints] = useState({});
   const [loading, setLoading] = useState(true);
 
+  // DEBUG STATE
+  const [debugResults, setDebugResults] = useState([]);
+  const [debugClubs, setDebugClubs] = useState([]);
+  const [debugResultsError, setDebugResultsError] = useState("");
+  const [debugClubsError, setDebugClubsError] = useState("");
+  const [debugMatchesError, setDebugMatchesError] = useState("");
+
   async function load() {
     setLoading(true);
 
     const [
-      { data: m, error: matchesError },
-      { data: r, error: resultsError },
-      { data: c, error: clubsError }
+      {
+        data: m,
+        error: matchesError
+      },
+      {
+        data: r,
+        error: resultsError
+      },
+      {
+        data: c,
+        error: clubsError
+      }
     ] = await Promise.all([
       supabase
         .from("matches")
@@ -93,16 +103,15 @@ export default function Home() {
           club_a:club_a_id(name),
           club_b:club_b_id(name)
         `)
-        .order("match_time", { ascending: true }),
+        .order("match_time", {
+          ascending: true
+        }),
 
-      /*
-        IMPORTANT:
-        Finalized results are stored in event_results,
-        not results.
-      */
       supabase
         .from("event_results")
-        .select("id, event_id, club_id, position, points")
+        .select(
+          "id,event_id,club_id,position,points"
+        )
         .order("event_id")
         .order("position"),
 
@@ -112,22 +121,27 @@ export default function Home() {
         .order("id")
     ]);
 
-    if (matchesError) {
-      console.error("Matches error:", matchesError);
-    }
+    // SAVE DEBUG DATA
 
-    if (resultsError) {
-      console.error("Results error:", resultsError);
-    }
+    setDebugResults(r || []);
+    setDebugClubs(c || []);
 
-    if (clubsError) {
-      console.error("Clubs error:", clubsError);
-    }
+    setDebugResultsError(
+      resultsError?.message || ""
+    );
+
+    setDebugClubsError(
+      clubsError?.message || ""
+    );
+
+    setDebugMatchesError(
+      matchesError?.message || ""
+    );
 
     setMatches(m || []);
 
     /*
-      Build club ID → club name map.
+      BUILD CLUB ID → NAME MAP
     */
 
     const clubMap = {};
@@ -137,13 +151,14 @@ export default function Home() {
     });
 
     /*
-      Calculate total points from event_results.
+      CALCULATE TOTAL POINTS
     */
 
     const totals = {};
 
     (r || []).forEach((result) => {
-      const clubName = clubMap[result.club_id];
+      const clubName =
+        clubMap[result.club_id];
 
       if (clubName) {
         totals[clubName] =
@@ -153,15 +168,16 @@ export default function Home() {
     });
 
     /*
-      Make sure every club appears,
-      even if it has zero points.
+      MAKE SURE ALL CLUBS APPEAR
     */
 
     clubs.forEach((club) => {
-      totals[club] = totals[club] || 0;
+      totals[club] =
+        totals[club] || 0;
     });
 
     setPoints(totals);
+
     setLoading(false);
   }
 
@@ -198,16 +214,20 @@ export default function Home() {
     };
   }, []);
 
-  const leaderboard = [...clubs].sort(
-    (a, b) =>
-      (points[b] || 0) -
-      (points[a] || 0)
-  );
+  const leaderboard =
+    [...clubs].sort(
+      (a, b) =>
+        (points[b] || 0) -
+        (points[a] || 0)
+    );
 
   return (
     <main>
 
+      {/* HEADER */}
+
       <header>
+
         <div className="logo">
           EUPHORIA <span>SPORTS</span>
         </div>
@@ -215,8 +235,11 @@ export default function Home() {
         <a href="/admin">
           ADMIN
         </a>
+
       </header>
 
+
+      {/* HERO */}
 
       <section className="hero">
 
@@ -237,6 +260,8 @@ export default function Home() {
 
       </section>
 
+
+      {/* CONTENT */}
 
       <section className="wrap">
 
@@ -278,7 +303,8 @@ export default function Home() {
 
                   <div>
                     <b>
-                      {match.club_a?.name || "TBD"}
+                      {match.club_a?.name ||
+                        "TBD"}
                     </b>
 
                     <strong>
@@ -286,17 +312,16 @@ export default function Home() {
                     </strong>
                   </div>
 
-
                   <div>
                     <b>
-                      {match.club_b?.name || "TBD"}
+                      {match.club_b?.name ||
+                        "TBD"}
                     </b>
 
                     <strong>
                       {match.score_b || "—"}
                     </strong>
                   </div>
-
 
                   <small>
                     {match.events?.name}
@@ -315,7 +340,7 @@ export default function Home() {
           </div>
 
 
-          {/* OVERALL POINTS */}
+          {/* LEADERBOARD */}
 
           <div className="card">
 
@@ -353,6 +378,228 @@ export default function Home() {
         </div>
 
 
+        {/* DEBUG */}
+
+        <div
+          className="card section"
+          style={{
+            border:
+              "2px solid #ff5570"
+          }}
+        >
+
+          <h2>
+            🔧 Debug — Supabase Data
+          </h2>
+
+          <p className="muted">
+            Temporary diagnostic section.
+            This shows exactly what the public
+            website receives from Supabase.
+          </p>
+
+
+          {/* MATCH ERROR */}
+
+          <h3>
+            Matches
+          </h3>
+
+          {debugMatchesError ? (
+
+            <p>
+              ❌ {debugMatchesError}
+            </p>
+
+          ) : (
+
+            <p>
+              ✅ Matches loaded:
+              {" "}
+              {matches.length}
+            </p>
+
+          )}
+
+
+          {/* EVENT RESULTS */}
+
+          <h3>
+            Event Results Received:
+            {" "}
+            {debugResults.length}
+          </h3>
+
+          {debugResultsError && (
+
+            <p>
+              ❌ Event Results Error:
+              {" "}
+              {debugResultsError}
+            </p>
+
+          )}
+
+          {debugResults.length === 0 ? (
+
+            <p className="muted">
+              No event_results rows received
+              by the public website.
+            </p>
+
+          ) : (
+
+            debugResults.map(
+              (result) => (
+
+                <div
+                  key={result.id}
+                  style={{
+                    padding: "12px",
+                    marginBottom: "8px",
+                    background:
+                      "#1c1c27",
+                    borderRadius:
+                      "10px"
+                  }}
+                >
+
+                  <b>
+                    Result ID:
+                  </b>{" "}
+                  {result.id}
+
+                  <br />
+
+                  <b>
+                    Event ID:
+                  </b>{" "}
+                  {result.event_id}
+
+                  <br />
+
+                  <b>
+                    Club ID:
+                  </b>{" "}
+                  {result.club_id}
+
+                  <br />
+
+                  <b>
+                    Position:
+                  </b>{" "}
+                  {result.position}
+
+                  <br />
+
+                  <b>
+                    Points:
+                  </b>{" "}
+                  {result.points}
+
+                </div>
+
+              )
+            )
+
+          )}
+
+
+          {/* CLUBS */}
+
+          <h3>
+            Clubs Received:
+            {" "}
+            {debugClubs.length}
+          </h3>
+
+          {debugClubsError && (
+
+            <p>
+              ❌ Clubs Error:
+              {" "}
+              {debugClubsError}
+            </p>
+
+          )}
+
+          {debugClubs.length === 0 ? (
+
+            <p className="muted">
+              No clubs received by the
+              public website.
+            </p>
+
+          ) : (
+
+            debugClubs.map(
+              (club) => (
+
+                <div
+                  key={club.id}
+                  style={{
+                    padding: "8px",
+                    marginBottom: "5px",
+                    background:
+                      "#1c1c27",
+                    borderRadius:
+                      "8px"
+                  }}
+                >
+
+                  ID:
+                  {" "}
+                  <b>
+                    {club.id}
+                  </b>
+
+                  {" — "}
+
+                  Name:
+                  {" "}
+                  <b>
+                    {club.name}
+                  </b>
+
+                </div>
+
+              )
+            )
+
+          )}
+
+
+          {/* CALCULATED POINTS */}
+
+          <h3>
+            Calculated Points
+          </h3>
+
+          {clubs.map(
+            (club) => (
+
+              <div
+                key={club}
+                style={{
+                  padding:
+                    "6px 0"
+                }}
+              >
+
+                {club}
+                {" → "}
+                <b>
+                  {points[club] || 0}
+                </b>
+
+              </div>
+
+            )
+          )}
+
+        </div>
+
+
         {/* POINTS SYSTEM */}
 
         <div className="card section">
@@ -373,7 +620,6 @@ export default function Home() {
               </span>
             </div>
 
-
             <div>
               <b>
                 Doubles / Mixed
@@ -383,7 +629,6 @@ export default function Home() {
                 🥇 15 · 🥈 10 · 🥉 7
               </span>
             </div>
-
 
             <div>
               <b>
@@ -408,7 +653,9 @@ export default function Home() {
             Events
           </h2>
 
-          {Object.entries(eventGroups).map(
+          {Object.entries(
+            eventGroups
+          ).map(
             ([group, sports]) => (
 
               <div
@@ -425,7 +672,9 @@ export default function Home() {
                   {sports.map(
                     (sport) => (
 
-                      <span key={sport}>
+                      <span
+                        key={sport}
+                      >
                         {sport}
                       </span>
 
@@ -445,4 +694,4 @@ export default function Home() {
 
     </main>
   );
-    }
+}
