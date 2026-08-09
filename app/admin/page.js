@@ -90,6 +90,86 @@ function displayCricketScore(runs, wickets, overs) {
 }
 
 /* =========================================================
+   COLLAPSIBLE SECTION
+========================================================= */
+
+function CollapsibleSection({
+  title,
+  icon,
+  children,
+  defaultOpen = false,
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+
+  return (
+    <div
+      className="card"
+      style={{
+        padding: 0,
+        overflow: "hidden",
+      }}
+    >
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        style={{
+          width: "100%",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          textAlign: "left",
+          padding: "20px",
+          margin: 0,
+          border: "none",
+          borderRadius: 0,
+          background: "transparent",
+          color: "inherit",
+          cursor: "pointer",
+          boxShadow: "none",
+        }}
+      >
+        <span
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "10px",
+            fontSize: "1.15rem",
+            fontWeight: 700,
+          }}
+        >
+          <span>{icon}</span>
+          <span>{title}</span>
+        </span>
+
+        <span
+          style={{
+            fontSize: "1.2rem",
+            transition: "transform .2s ease",
+            transform: open
+              ? "rotate(180deg)"
+              : "rotate(0deg)",
+          }}
+        >
+          ▼
+        </span>
+      </button>
+
+      {open && (
+        <div
+          style={{
+            padding: "0 20px 20px",
+            borderTop:
+              "1px solid rgba(255,255,255,.10)",
+          }}
+        >
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* =========================================================
    MAIN
 ========================================================= */
 
@@ -598,10 +678,6 @@ export default function Admin() {
       return;
     }
 
-    /* =====================================================
-       CRICKET
-    ===================================================== */
-
     if (cricketSelected) {
       if (!form.batting_first_club_id) {
         setMsg("Please select which club batted first.");
@@ -716,10 +792,6 @@ export default function Admin() {
       setMsg("🏏 Cricket match created successfully.");
     }
 
-    /* =====================================================
-       DOUBLES / MIXED DOUBLES
-    ===================================================== */
-
     else if (doublesSelected) {
       if (
         !form.player_a1.trim() ||
@@ -741,17 +813,11 @@ export default function Admin() {
         .from("matches")
         .insert({
           event_id: Number(form.event_id),
-
           club_a_id: Number(form.club_a_id),
-
           club_b_id: Number(form.club_b_id),
-
           score_a: playersA,
-
           score_b: playersB,
-
           status: form.status,
-
           winner_club_id: null,
         });
 
@@ -762,10 +828,6 @@ export default function Admin() {
 
       setMsg("👥 Doubles match created successfully.");
     }
-
-    /* =====================================================
-       NORMAL EVENT
-    ===================================================== */
 
     else {
       let winner = null;
@@ -794,17 +856,11 @@ export default function Admin() {
         .from("matches")
         .insert({
           event_id: Number(form.event_id),
-
           club_a_id: Number(form.club_a_id),
-
           club_b_id: Number(form.club_b_id),
-
           score_a: form.score_a || null,
-
           score_b: form.score_b || null,
-
           status: form.status,
-
           winner_club_id: winner,
         });
 
@@ -974,9 +1030,7 @@ export default function Admin() {
       .update({
         score_a: scoreA,
         score_b: scoreB,
-
         status,
-
         winner_club_id: winner,
 
         batting_first_club_id:
@@ -1432,9 +1486,10 @@ export default function Admin() {
             ADMIN ACCESS
         ================================================= */}
 
-        <div className="card">
-          <h2>🔐 Admin Access</h2>
-
+        <CollapsibleSection
+          title="Admin Access"
+          icon="🔐"
+        >
           <p className="muted">
             Logged in as:
             <br />
@@ -1508,15 +1563,16 @@ export default function Admin() {
               </div>
             ))
           )}
-        </div>
+        </CollapsibleSection>
 
         {/* =================================================
             ADD EVENT
         ================================================= */}
 
-        <div className="card">
-          <h2>➕ Add Sport / Event</h2>
-
+        <CollapsibleSection
+          title="Add Sport / Event"
+          icon="➕"
+        >
           <p className="muted">
             Add a new sport whenever required.
           </p>
@@ -1597,13 +1653,17 @@ export default function Admin() {
               Add Sport / Event
             </button>
           </form>
-        </div>
+        </CollapsibleSection>
 
         {/* =================================================
             CREATE MATCH
         ================================================= */}
 
-        <div className="card">
+        <CollapsibleSection
+          title="Create New Match"
+          icon="➕"
+          defaultOpen={true}
+        >
           <h1>Admin Dashboard</h1>
 
           <p className="muted">
@@ -1700,10 +1760,6 @@ export default function Admin() {
               </select>
             </label>
 
-            {/* =============================================
-                CRICKET
-            ============================================= */}
-
             {cricketSelected ? (
               <div
                 style={{
@@ -1734,9 +1790,7 @@ export default function Admin() {
                     </option>
 
                     {form.club_a_id && (
-                      <option
-                        value={form.club_a_id}
-                      >
+                      <option value={form.club_a_id}>
                         {clubs.find(
                           (c) =>
                             String(c.id) ===
@@ -1746,9 +1800,7 @@ export default function Admin() {
                     )}
 
                     {form.club_b_id && (
-                      <option
-                        value={form.club_b_id}
-                      >
+                      <option value={form.club_b_id}>
                         {clubs.find(
                           (c) =>
                             String(c.id) ===
@@ -1885,10 +1937,6 @@ export default function Admin() {
                 </label>
               </div>
             ) : doublesSelected ? (
-              /* =============================================
-                 DOUBLES / MIXED DOUBLES
-              ============================================= */
-
               <div
                 style={{
                   marginTop: "20px",
@@ -1981,10 +2029,6 @@ export default function Admin() {
                 </label>
               </div>
             ) : (
-              /* =============================================
-                 NORMAL EVENT
-              ============================================= */
-
               <div className="two">
                 <label>
                   Score A
@@ -2050,7 +2094,7 @@ export default function Admin() {
                 : "Create Match"}
             </button>
           </form>
-        </div>
+        </CollapsibleSection>
 
         {/* =================================================
             MESSAGE
@@ -2066,9 +2110,10 @@ export default function Admin() {
             FINALIZE RESULT
         ================================================= */}
 
-        <div className="card">
-          <h2>🏆 Finalize Event Result</h2>
-
+        <CollapsibleSection
+          title="Finalize Event Result"
+          icon="🏆"
+        >
           <form onSubmit={finalizeResult}>
             <label>
               Event
@@ -2183,15 +2228,16 @@ export default function Admin() {
               Finalize Result & Award Points
             </button>
           </form>
-        </div>
+        </CollapsibleSection>
 
         {/* =================================================
             EXISTING MATCHES
         ================================================= */}
 
-        <div className="card">
-          <h2>Existing Matches</h2>
-
+        <CollapsibleSection
+          title={`Existing Matches (${matches.length})`}
+          icon="🏟️"
+        >
           {loading ? (
             <p>Loading...</p>
           ) : matches.length === 0 ? (
@@ -2206,18 +2252,37 @@ export default function Admin() {
               const doubles =
                 isDoublesEvent(match.events);
 
-              return (
-                <div
-                  className="adminMatch"
-                  key={match.id}
-                >
-                  <b>
-                    {match.club_a?.name || "TBD"}
-                    {" vs "}
-                    {match.club_b?.name || "TBD"}
-                  </b>
+              const winnerName =
+                match.winner_club_id
+                  ? Number(match.winner_club_id) ===
+                    Number(match.club_a_id)
+                    ? match.club_a?.name
+                    : Number(match.winner_club_id) ===
+                      Number(match.club_b_id)
+                    ? match.club_b?.name
+                    : null
+                  : null;
 
-                  <small>
+              return (
+                <CollapsibleSection
+                  key={match.id}
+                  title={`${match.club_a?.name || "TBD"} vs ${
+                    match.club_b?.name || "TBD"
+                  }`}
+                  icon={
+                    match.status === "Final"
+                      ? "🏁"
+                      : match.status === "Live"
+                      ? "🔴"
+                      : "⏳"
+                  }
+                >
+                  <small
+                    style={{
+                      display: "block",
+                      marginBottom: "15px",
+                    }}
+                  >
                     {match.events?.gender}
                     {" · "}
                     {match.events?.name}
@@ -2225,9 +2290,22 @@ export default function Admin() {
                     {match.events?.category}
                   </small>
 
-                  {/* =======================================
-                      EXISTING CRICKET
-                  ======================================= */}
+                  {match.status === "Final" &&
+                    winnerName && (
+                      <div
+                        style={{
+                          padding: "12px 15px",
+                          marginBottom: "18px",
+                          borderRadius: "10px",
+                          background:
+                            "rgba(255,193,7,.12)",
+                          border:
+                            "1px solid rgba(255,193,7,.35)",
+                        }}
+                      >
+                        🏆 <b>Winner: {winnerName}</b>
+                      </div>
+                    )}
 
                   {cricket ? (
                     <>
@@ -2359,11 +2437,6 @@ export default function Admin() {
                         />
                       </label>
                     </>
-
-                  /* =======================================
-                     EXISTING DOUBLES
-                  ======================================= */
-
                   ) : doubles ? (
                     <>
                       <h4>👥 Doubles Players</h4>
@@ -2428,11 +2501,6 @@ export default function Admin() {
                         />
                       </label>
                     </>
-
-                  /* =======================================
-                     EXISTING NORMAL MATCH
-                  ======================================= */
-
                   ) : (
                     <div className="two">
                       <input
@@ -2495,19 +2563,20 @@ export default function Admin() {
                   >
                     🗑️ Delete Match
                   </button>
-                </div>
+                </CollapsibleSection>
               );
             })
           )}
-        </div>
+        </CollapsibleSection>
 
         {/* =================================================
             RESULTS
         ================================================= */}
 
-        <div className="card">
-          <h2>🏆 Finalized Results</h2>
-
+        <CollapsibleSection
+          title={`Finalized Results (${results.length})`}
+          icon="🏆"
+        >
           {results.length === 0 ? (
             <p className="muted">
               No finalized results yet.
@@ -2552,15 +2621,16 @@ export default function Admin() {
               </div>
             ))
           )}
-        </div>
+        </CollapsibleSection>
 
         {/* =================================================
             EVENTS
         ================================================= */}
 
-        <div className="card">
-          <h2>📋 All Events</h2>
-
+        <CollapsibleSection
+          title={`All Events (${events.length})`}
+          icon="📋"
+        >
           {events.length === 0 ? (
             <p className="muted">
               No events found.
@@ -2581,9 +2651,9 @@ export default function Admin() {
               </div>
             ))
           )}
-        </div>
+        </CollapsibleSection>
 
       </section>
     </main>
   );
-                     }
+    }
