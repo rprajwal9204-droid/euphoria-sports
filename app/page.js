@@ -578,12 +578,18 @@ export default function Home() {
   const [points, setPoints] = useState({});
   const [events, setEvents] = useState([]);
   const [clubRows, setClubRows] = useState([]);
+  const [eventResults, setEventResults] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const [
     selectedTeamSport,
     setSelectedTeamSport,
   ] = useState("");
+
+  const [
+    expandedClub,
+    setExpandedClub,
+  ] = useState(null);
 
   async function load() {
     setLoading(true);
@@ -660,12 +666,15 @@ export default function Home() {
           ascending: true,
         }),
 
+      /* EVENT RESULTS + EVENT INFORMATION */
       supabase
         .from("event_results")
         .select(`
+          id,
+          event_id,
           club_id,
-          points,
-          clubs(name)
+          position,
+          points
         `),
 
       supabase
@@ -710,11 +719,23 @@ export default function Home() {
     setMatches(matchData || []);
     setEvents(eventData || []);
     setClubRows(clubData || []);
+    setEventResults(resultData || []);
+
+    /* ========================================================
+       OVERALL POINT TOTALS
+    ======================================================== */
 
     const totals = {};
 
     (resultData || []).forEach((result) => {
-      const name = result.clubs?.name;
+      const club =
+        (clubData || []).find(
+          (item) =>
+            Number(item.id) ===
+            Number(result.club_id)
+        );
+
+      const name = club?.name;
 
       if (name) {
         totals[name] =
@@ -724,7 +745,8 @@ export default function Home() {
     });
 
     defaultClubs.forEach((club) => {
-      totals[club] = totals[club] || 0;
+      totals[club] =
+        totals[club] || 0;
     });
 
     (clubData || []).forEach((club) => {
@@ -766,6 +788,7 @@ export default function Home() {
 
     const channel = supabase
       .channel("euphoria-public-live")
+
       .on(
         "postgres_changes",
         {
@@ -775,6 +798,7 @@ export default function Home() {
         },
         load
       )
+
       .on(
         "postgres_changes",
         {
@@ -784,6 +808,7 @@ export default function Home() {
         },
         load
       )
+
       .on(
         "postgres_changes",
         {
@@ -793,6 +818,7 @@ export default function Home() {
         },
         load
       )
+
       .subscribe();
 
     return () => {
@@ -867,6 +893,39 @@ export default function Home() {
     selectedSportName === "basketball" ||
     selectedSportName === "volleyball";
 
+  /* ==========================================================
+     EVENT BREAKDOWN FOR SELECTED CLUB
+  ========================================================== */
+
+  const selectedClubResults =
+    expandedClub === null
+      ? []
+      : eventResults
+          .filter(
+            (result) =>
+              Number(result.club_id) ===
+              Number(expandedClub)
+          )
+          .map((result) => {
+            const event =
+              events.find(
+                (item) =>
+                  Number(item.id) ===
+                  Number(result.event_id)
+              );
+
+            return {
+              ...result,
+              event,
+            };
+          })
+          .sort((a, b) => {
+            return (
+              Number(a.position || 999) -
+              Number(b.position || 999)
+            );
+          });
+
   function MatchCard({ match }) {
     return (
       <div className="match">
@@ -909,8 +968,27 @@ export default function Home() {
     return index + 1;
   }
 
+  function getPositionDisplay(position) {
+    const number = Number(position);
+
+    if (number === 1) return "🥇 1st";
+    if (number === 2) return "🥈 2nd";
+    if (number === 3) return "🥉 3rd";
+
+    if (number === 4) return "4th";
+    if (number === 5) return "5th";
+    if (number === 6) return "6th";
+    if (number === 7) return "7th";
+    if (number === 8) return "8th";
+    if (number === 9) return "9th";
+    if (number === 10) return "10th";
+
+    return `${number}th`;
+  }
+
   return (
     <main>
+
       <style jsx>{`
 
         /* ======================================================
@@ -1035,7 +1113,102 @@ export default function Home() {
           font-size: 14px;
         }
 
-        /* TABLE */
+        /* ======================================================
+           EVENT BREAKDOWN
+        ====================================================== */
+
+        .eventBreakdown {
+          margin: 0 12px 12px 57px;
+          padding: 14px;
+
+          border-radius: 16px;
+
+          background:
+            rgba(
+              124,
+              76,
+              255,
+              0.08
+            );
+
+          border: 1px solid
+            rgba(
+              255,
+              255,
+              255,
+              0.08
+            );
+        }
+
+        .eventBreakdownTitle {
+          font-size: 11px;
+          font-weight: 900;
+          letter-spacing: 1px;
+          opacity: 0.55;
+          margin-bottom: 9px;
+        }
+
+        .eventBreakdownRow {
+          display: grid;
+          grid-template-columns:
+            minmax(0, 1fr)
+            95px
+            65px;
+
+          align-items: center;
+          gap: 10px;
+
+          min-height: 42px;
+
+          border-bottom: 1px solid
+            rgba(
+              255,
+              255,
+              255,
+              0.06
+            );
+        }
+
+        .eventBreakdownRow:last-child {
+          border-bottom: none;
+        }
+
+        .eventBreakdownEvent {
+          min-width: 0;
+        }
+
+        .eventBreakdownName {
+          font-weight: 800;
+          font-size: 13px;
+        }
+
+        .eventBreakdownGender {
+          margin-top: 2px;
+          font-size: 9px;
+          opacity: 0.5;
+        }
+
+        .eventBreakdownPosition {
+          text-align: center;
+          font-size: 12px;
+          font-weight: 800;
+        }
+
+        .eventBreakdownPoints {
+          text-align: right;
+          font-size: 15px;
+          font-weight: 950;
+        }
+
+        .eventBreakdownEmpty {
+          font-size: 12px;
+          opacity: 0.55;
+          padding: 8px 0;
+        }
+
+        /* ======================================================
+           TABLE
+        ====================================================== */
 
         .standingsFrame {
           position: relative;
@@ -1097,8 +1270,7 @@ export default function Home() {
 
         .standingsTable tbody tr {
           transition:
-            background 0.2s ease,
-            transform 0.2s ease;
+            background 0.2s ease;
         }
 
         .standingsTable tbody tr:hover {
@@ -1162,7 +1334,9 @@ export default function Home() {
           opacity: 0.55;
         }
 
-        /* MOBILE */
+        /* ======================================================
+           MOBILE
+        ====================================================== */
 
         .mobileStandings {
           display: none;
@@ -1312,6 +1486,21 @@ export default function Home() {
 
           border-bottom: 1px solid
             rgba(255,255,255,0.07);
+
+          cursor: pointer;
+
+          transition:
+            background 0.2s ease;
+        }
+
+        .overallRow:hover {
+          background:
+            rgba(
+              255,
+              255,
+              255,
+              0.045
+            );
         }
 
         .overallRow:last-child {
@@ -1327,6 +1516,14 @@ export default function Home() {
         .overallClub {
           font-weight: 850;
           font-size: 15px;
+        }
+
+        .overallClubHint {
+          display: block;
+          margin-top: 3px;
+          font-size: 9px;
+          opacity: 0.38;
+          font-weight: 600;
         }
 
         .overallPoints {
@@ -1383,6 +1580,32 @@ export default function Home() {
           .overallPoints {
             font-size: 20px;
           }
+
+          .eventBreakdown {
+            margin-left: 0;
+            margin-right: 0;
+          }
+
+          .eventBreakdownRow {
+            grid-template-columns:
+              minmax(0, 1fr)
+              82px
+              58px;
+
+            gap: 6px;
+          }
+
+          .eventBreakdownName {
+            font-size: 12px;
+          }
+
+          .eventBreakdownPosition {
+            font-size: 11px;
+          }
+
+          .eventBreakdownPoints {
+            font-size: 14px;
+          }
         }
       `}</style>
 
@@ -1406,6 +1629,7 @@ export default function Home() {
       ====================================================== */}
 
       <section className="hero">
+
         <small>
           INTER-CLUB SPORTS CHAMPIONSHIP
         </small>
@@ -1421,6 +1645,7 @@ export default function Home() {
           the race for the Euphoria
           Club Championship.
         </p>
+
       </section>
 
       <section className="wrap">
@@ -1531,28 +1756,130 @@ export default function Home() {
 
           <div style={{ marginTop: "16px" }}>
 
-            {leaderboard.map((club, index) => (
+            {leaderboard.map((club, index) => {
 
-              <div
-                className="overallRow"
-                key={club}
-              >
+              const clubData =
+                clubRows.find(
+                  (item) =>
+                    item.name === club
+                );
 
-                <div className="overallPosition">
-                  {getMedal(index)}
+              const clubId =
+                clubData?.id;
+
+              const isExpanded =
+                Number(expandedClub) ===
+                Number(clubId);
+
+              return (
+                <div key={club}>
+
+                  <div
+                    className="overallRow"
+                    onClick={() => {
+
+                      if (!clubId) return;
+
+                      setExpandedClub(
+                        isExpanded
+                          ? null
+                          : clubId
+                      );
+                    }}
+                  >
+
+                    <div className="overallPosition">
+                      {getMedal(index)}
+                    </div>
+
+                    <div className="overallClub">
+
+                      {club}
+
+                      <span className="overallClubHint">
+                        {isExpanded
+                          ? "Tap to hide event details"
+                          : "Tap to view event details"}
+                      </span>
+
+                    </div>
+
+                    <div className="overallPoints">
+                      {points[club] || 0}
+                    </div>
+
+                  </div>
+
+                  {/* ==================================================
+                     EVENT BREAKDOWN
+                  ================================================== */}
+
+                  {isExpanded && (
+
+                    <div className="eventBreakdown">
+
+                      <div className="eventBreakdownTitle">
+                        EVENT-WISE POINTS
+                      </div>
+
+                      {selectedClubResults.length === 0 ? (
+
+                        <div className="eventBreakdownEmpty">
+                          No event results recorded yet.
+                        </div>
+
+                      ) : (
+
+                        selectedClubResults.map(
+                          (result) => (
+
+                            <div
+                              className="eventBreakdownRow"
+                              key={result.id}
+                            >
+
+                              <div className="eventBreakdownEvent">
+
+                                <div className="eventBreakdownName">
+                                  {result.event?.name ||
+                                    "Unknown Event"}
+                                </div>
+
+                                {result.event?.gender && (
+                                  <div className="eventBreakdownGender">
+                                    {result.event.gender}
+                                  </div>
+                                )}
+
+                              </div>
+
+                              <div className="eventBreakdownPosition">
+                                {getPositionDisplay(
+                                  result.position
+                                )}
+                              </div>
+
+                              <div className="eventBreakdownPoints">
+                                {Number(
+                                  result.points || 0
+                                )}{" "}
+                                pts
+                              </div>
+
+                            </div>
+
+                          )
+                        )
+
+                      )}
+
+                    </div>
+
+                  )}
+
                 </div>
-
-                <div className="overallClub">
-                  {club}
-                </div>
-
-                <div className="overallPoints">
-                  {points[club] || 0}
-                </div>
-
-              </div>
-
-            ))}
+              );
+            })}
 
           </div>
 
@@ -1664,7 +1991,7 @@ export default function Home() {
                       <>
 
                         {/* ==================================================
-                           DESKTOP STANDINGS TABLE
+                           DESKTOP STANDINGS
                            PODIUM REMOVED
                         ================================================== */}
 
@@ -1883,7 +2210,7 @@ export default function Home() {
                         </div>
 
                         {/* ==================================================
-                           MOBILE STANDINGS TABLE
+                           MOBILE STANDINGS
                         ================================================== */}
 
                         <div
@@ -2205,4 +2532,4 @@ export default function Home() {
 
     </main>
   );
-    }
+}
