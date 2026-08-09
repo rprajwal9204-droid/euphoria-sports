@@ -579,6 +579,7 @@ export default function Home() {
   const [events, setEvents] = useState([]);
   const [clubRows, setClubRows] = useState([]);
   const [loading, setLoading] = useState(true);
+
   const [
     selectedTeamSport,
     setSelectedTeamSport,
@@ -679,19 +680,31 @@ export default function Home() {
     ]);
 
     if (matchError) {
-      console.error("Matches error:", matchError);
+      console.error(
+        "Matches error:",
+        matchError
+      );
     }
 
     if (resultError) {
-      console.error("Results error:", resultError);
+      console.error(
+        "Results error:",
+        resultError
+      );
     }
 
     if (eventError) {
-      console.error("Events error:", eventError);
+      console.error(
+        "Events error:",
+        eventError
+      );
     }
 
     if (clubError) {
-      console.error("Clubs error:", clubError);
+      console.error(
+        "Clubs error:",
+        clubError
+      );
     }
 
     setMatches(matchData || []);
@@ -892,12 +905,12 @@ export default function Home() {
     if (index === 0) return "🥇";
     if (index === 1) return "🥈";
     if (index === 2) return "🥉";
+
     return index + 1;
   }
 
   return (
     <main>
-
       <style jsx>{`
 
         /* ======================================================
@@ -1020,90 +1033,6 @@ export default function Home() {
           color: inherit;
           outline: none;
           font-size: 14px;
-        }
-
-        /* TOP THREE */
-
-        .podium {
-          position: relative;
-          display: grid;
-          grid-template-columns:
-            1fr 1.12fr 1fr;
-          gap: 14px;
-          align-items: end;
-          margin: 26px 0;
-        }
-
-        .podiumCard {
-          position: relative;
-          min-height: 135px;
-          padding: 20px;
-          border-radius: 22px;
-
-          display: flex;
-          flex-direction: column;
-          justify-content: space-between;
-
-          text-align: center;
-
-          background:
-            linear-gradient(
-              145deg,
-              rgba(255,255,255,0.105),
-              rgba(255,255,255,0.035)
-            );
-
-          border: 1px solid
-            rgba(255,255,255,0.12);
-
-          box-shadow:
-            0 14px 35px
-              rgba(0,0,0,0.18);
-        }
-
-        .podiumCard.first {
-          min-height: 170px;
-          transform: translateY(-8px);
-
-          background:
-            linear-gradient(
-              145deg,
-              rgba(255,215,80,0.17),
-              rgba(255,255,255,0.045)
-            );
-
-          border-color:
-            rgba(255,215,80,0.28);
-        }
-
-        .podiumMedal {
-          font-size: 29px;
-        }
-
-        .podiumPosition {
-          font-size: 10px;
-          opacity: 0.5;
-          letter-spacing: 1.5px;
-          font-weight: 800;
-        }
-
-        .podiumClub {
-          font-size: 17px;
-          font-weight: 900;
-          margin-top: 5px;
-        }
-
-        .podiumPoints {
-          font-size: 28px;
-          font-weight: 950;
-          line-height: 1;
-        }
-
-        .podiumPts {
-          font-size: 9px;
-          opacity: 0.5;
-          margin-top: 4px;
-          letter-spacing: 1px;
         }
 
         /* TABLE */
@@ -1371,6 +1300,7 @@ export default function Home() {
 
         .overallRow {
           display: grid;
+
           grid-template-columns:
             45px minmax(0,1fr) 80px;
 
@@ -1425,31 +1355,6 @@ export default function Home() {
             margin-top: 14px;
           }
 
-          .podium {
-            grid-template-columns:
-              1fr 1fr;
-            gap: 10px;
-          }
-
-          .podiumCard {
-            min-height: 125px;
-            padding: 15px 10px;
-          }
-
-          .podiumCard.first {
-            grid-column: 1 / -1;
-            min-height: 145px;
-            transform: none;
-          }
-
-          .podiumClub {
-            font-size: 15px;
-          }
-
-          .podiumPoints {
-            font-size: 24px;
-          }
-
           .standingsFrame {
             border-radius: 17px;
           }
@@ -1479,11 +1384,10 @@ export default function Home() {
             font-size: 20px;
           }
         }
-
       `}</style>
 
       {/* ======================================================
-          HEADER
+         HEADER
       ====================================================== */}
 
       <header>
@@ -1498,7 +1402,7 @@ export default function Home() {
       </header>
 
       {/* ======================================================
-          HERO
+         HERO
       ====================================================== */}
 
       <section className="hero">
@@ -1522,12 +1426,13 @@ export default function Home() {
       <section className="wrap">
 
         {/* ====================================================
-            LIVE + UPCOMING
+           LIVE + UPCOMING
         ==================================================== */}
 
         <div className="grid">
 
           <div className="card">
+
             <div className="live">
               🔴 LIVE
             </div>
@@ -1550,9 +1455,11 @@ export default function Home() {
                 />
               ))
             )}
+
           </div>
 
           <div className="card">
+
             <div className="live">
               🟡 UPCOMING
             </div>
@@ -1575,15 +1482,17 @@ export default function Home() {
                 />
               ))
             )}
+
           </div>
 
         </div>
 
         {/* ====================================================
-            COMPLETED
+           COMPLETED
         ==================================================== */}
 
         <div className="card section">
+
           <h2>
             ✅ Completed Matches
           </h2>
@@ -1602,10 +1511,11 @@ export default function Home() {
               />
             ))
           )}
+
         </div>
 
         {/* ====================================================
-            OVERALL CHAMPIONSHIP
+           OVERALL CHAMPIONSHIP
         ==================================================== */}
 
         <div className="overallChampionship">
@@ -1620,11 +1530,14 @@ export default function Home() {
           </p>
 
           <div style={{ marginTop: "16px" }}>
+
             {leaderboard.map((club, index) => (
+
               <div
                 className="overallRow"
                 key={club}
               >
+
                 <div className="overallPosition">
                   {getMedal(index)}
                 </div>
@@ -1636,14 +1549,17 @@ export default function Home() {
                 <div className="overallPoints">
                   {points[club] || 0}
                 </div>
+
               </div>
+
             ))}
+
           </div>
 
         </div>
 
         {/* ====================================================
-            TEAM SPORT LEADERBOARD
+           TEAM SPORT LEADERBOARD
         ==================================================== */}
 
         <div className="section">
@@ -1655,6 +1571,7 @@ export default function Home() {
             <div className="leaderboardHeading">
 
               <div>
+
                 <h2 className="leaderboardTitle">
                   🏆 Team Sport Standings
                 </h2>
@@ -1664,6 +1581,7 @@ export default function Home() {
                   automatically from completed
                   matches.
                 </p>
+
               </div>
 
               {selectedEvent && (
@@ -1677,13 +1595,17 @@ export default function Home() {
             </div>
 
             {teamSports.length === 0 ? (
+
               <p className="muted">
                 No team sports have been added yet.
               </p>
+
             ) : (
+
               <>
 
                 <label>
+
                   <b>
                     Select Sport
                   </b>
@@ -1697,25 +1619,34 @@ export default function Home() {
                       )
                     }
                   >
+
                     {teamSports.map((event) => (
+
                       <option
                         key={event.id}
                         value={event.id}
                       >
                         {event.gender} · {event.name}
                       </option>
+
                     ))}
+
                   </select>
+
                 </label>
 
                 {selectedEvent && (
+
                   <>
+
                     {sportLeaderboard.completedCount === 0 ? (
+
                       <div
                         style={{
                           padding: "28px 0",
                         }}
                       >
+
                         <p className="muted">
                           No matches played yet.
                         </p>
@@ -1725,75 +1656,17 @@ export default function Home() {
                           have <b>0</b> matches
                           played.
                         </p>
+
                       </div>
+
                     ) : (
+
                       <>
 
-                        {/* ================================
-                            PODIUM
-                        ================================= */}
-
-                        {sportLeaderboard.rows.length >= 3 && (
-                          <div className="podium">
-
-                            {[1, 0, 2].map(
-                              (position) => {
-                                const row =
-                                  sportLeaderboard.rows[
-                                    position
-                                  ];
-
-                                if (!row) return null;
-
-                                return (
-                                  <div
-                                    key={row.id}
-                                    className={`podiumCard ${
-                                      position === 0
-                                        ? "first"
-                                        : ""
-                                    }`}
-                                  >
-
-                                    <div>
-                                      <div className="podiumMedal">
-                                        {getMedal(position)}
-                                      </div>
-
-                                      <div className="podiumPosition">
-                                        {position === 0
-                                          ? "CHAMPIONS"
-                                          : `POSITION ${
-                                              position + 1
-                                            }`}
-                                      </div>
-
-                                      <div className="podiumClub">
-                                        {row.name}
-                                      </div>
-                                    </div>
-
-                                    <div>
-                                      <div className="podiumPoints">
-                                        {row.points}
-                                      </div>
-
-                                      <div className="podiumPts">
-                                        POINTS
-                                      </div>
-                                    </div>
-
-                                  </div>
-                                );
-                              }
-                            )}
-
-                          </div>
-                        )}
-
-                        {/* ================================
-                            DESKTOP TABLE
-                        ================================= */}
+                        {/* ==================================================
+                           DESKTOP STANDINGS TABLE
+                           PODIUM REMOVED
+                        ================================================== */}
 
                         <div
                           className="standingsFrame standingsDesktop"
@@ -1805,6 +1678,7 @@ export default function Home() {
                           <table className="standingsTable">
 
                             <thead>
+
                               <tr>
 
                                 <th>
@@ -1884,12 +1758,14 @@ export default function Home() {
                                 </th>
 
                               </tr>
+
                             </thead>
 
                             <tbody>
 
                               {sportLeaderboard.rows.map(
                                 (row, index) => (
+
                                   <tr
                                     key={row.id}
                                     className={
@@ -1943,7 +1819,9 @@ export default function Home() {
                                           fontWeight: 850,
                                         }}
                                       >
-                                        {formatNRR(row.nrr)}
+                                        {formatNRR(
+                                          row.nrr
+                                        )}
                                       </td>
                                     )}
 
@@ -1994,6 +1872,7 @@ export default function Home() {
                                     </td>
 
                                   </tr>
+
                                 )
                               )}
 
@@ -2003,9 +1882,9 @@ export default function Home() {
 
                         </div>
 
-                        {/* ================================
-                            MOBILE TABLE
-                        ================================= */}
+                        {/* ==================================================
+                           MOBILE STANDINGS TABLE
+                        ================================================== */}
 
                         <div
                           className="standingsFrame mobileStandings"
@@ -2016,6 +1895,7 @@ export default function Home() {
 
                           {sportLeaderboard.rows.map(
                             (row, index) => (
+
                               <div
                                 key={row.id}
                                 className={`mobileStandingRow ${
@@ -2075,7 +1955,9 @@ export default function Home() {
                                     <div className="mobileStandingExtra">
                                       NRR{" "}
                                       <b>
-                                        {formatNRR(row.nrr)}
+                                        {formatNRR(
+                                          row.nrr
+                                        )}
                                       </b>
                                     </div>
                                   )}
@@ -2095,16 +1977,22 @@ export default function Home() {
                                   {usesPD && (
                                     <div className="mobileStandingExtra">
                                       PF{" "}
-                                      {formatNumber(row.pf)}
+                                      {formatNumber(
+                                        row.pf
+                                      )}
                                       {" · "}
                                       PA{" "}
-                                      {formatNumber(row.pa)}
+                                      {formatNumber(
+                                        row.pa
+                                      )}
                                       {" · "}
                                       PD{" "}
                                       {row.pd > 0
                                         ? "+"
                                         : ""}
-                                      {formatNumber(row.pd)}
+                                      {formatNumber(
+                                        row.pd
+                                      )}
                                     </div>
                                   )}
 
@@ -2123,6 +2011,7 @@ export default function Home() {
                                 </div>
 
                               </div>
+
                             )
                           )}
 
@@ -2171,11 +2060,15 @@ export default function Home() {
                         </div>
 
                       </>
+
                     )}
+
                   </>
+
                 )}
 
               </>
+
             )}
 
           </div>
@@ -2183,7 +2076,7 @@ export default function Home() {
         </div>
 
         {/* ====================================================
-            POINTS SYSTEM
+           POINTS SYSTEM
         ==================================================== */}
 
         <div className="card section">
@@ -2195,6 +2088,7 @@ export default function Home() {
           <div className="rules">
 
             <div>
+
               <b>
                 Team
               </b>
@@ -2202,9 +2096,11 @@ export default function Home() {
               <span>
                 🥇 25 · 🥈 15 · 🥉 7
               </span>
+
             </div>
 
             <div>
+
               <b>
                 Doubles / Mixed
               </b>
@@ -2212,9 +2108,11 @@ export default function Home() {
               <span>
                 🥇 15 · 🥈 10 · 🥉 7
               </span>
+
             </div>
 
             <div>
+
               <b>
                 Individual
               </b>
@@ -2222,6 +2120,7 @@ export default function Home() {
               <span>
                 🥇 10 · 🥈 7 · 🥉 5
               </span>
+
             </div>
 
           </div>
@@ -2229,7 +2128,7 @@ export default function Home() {
         </div>
 
         {/* ====================================================
-            EVENTS
+           EVENTS
         ==================================================== */}
 
         <div className="card section">
@@ -2240,6 +2139,7 @@ export default function Home() {
 
           {Object.entries(eventGroups).map(
             ([group, sports]) => (
+
               <div
                 className="eventGroup"
                 key={group}
@@ -2252,18 +2152,22 @@ export default function Home() {
                 <div className="pills">
 
                   {sports.map((sport) => (
+
                     <span key={sport}>
                       {sport}
                     </span>
+
                   ))}
 
                 </div>
 
               </div>
+
             )
           )}
 
           {events.length > 0 && (
+
             <div
               className="eventGroup"
               style={{
@@ -2278,16 +2182,21 @@ export default function Home() {
               <div className="pills">
 
                 {events.map((event) => (
+
                   <span key={event.id}>
+
                     {event.name}
                     {" · "}
                     {event.gender}
+
                   </span>
+
                 ))}
 
               </div>
 
             </div>
+
           )}
 
         </div>
@@ -2296,4 +2205,4 @@ export default function Home() {
 
     </main>
   );
-}
+    }
