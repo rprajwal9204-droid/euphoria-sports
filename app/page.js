@@ -19,25 +19,32 @@ const eventGroups = {
     "Basketball",
     "Kho Kho",
   ],
+
   "Women's Team Sports": [
     "Cricket",
     "Throwball",
     "Basketball",
     "Kho Kho",
   ],
+
   "Men's Doubles": [
     "Tennis",
     "Table Tennis",
     "Badminton",
     "Carrom",
   ],
+
   "Women's Doubles": [
     "Tennis",
     "Table Tennis",
     "Badminton",
     "Carrom",
   ],
-  "Mixed Doubles": ["Tennis"],
+
+  "Mixed Doubles": [
+    "Tennis",
+  ],
+
   "Men's Individual": [
     "Marathon",
     "100m",
@@ -48,6 +55,7 @@ const eventGroups = {
     "Table Tennis",
     "Cycling",
   ],
+
   "Women's Individual": [
     "Marathon",
     "100m",
@@ -116,7 +124,9 @@ function cricketOversToNumber(value) {
   if (!text.includes(".")) {
     const overs = Number(text);
 
-    return Number.isFinite(overs) ? overs : null;
+    return Number.isFinite(overs)
+      ? overs
+      : null;
   }
 
   const parts = text.split(".");
@@ -147,8 +157,13 @@ function getCricketStats(match) {
   const clubA = Number(match.club_a_id);
   const clubB = Number(match.club_b_id);
 
-  let firstRuns = numericScore(match.innings1_runs);
-  let secondRuns = numericScore(match.innings2_runs);
+  let firstRuns = numericScore(
+    match.innings1_runs
+  );
+
+  let secondRuns = numericScore(
+    match.innings2_runs
+  );
 
   let firstOvers = cricketOversToNumber(
     match.innings1_overs
@@ -159,11 +174,15 @@ function getCricketStats(match) {
   );
 
   if (firstRuns === null) {
-    firstRuns = numericScore(match.innings_a_runs);
+    firstRuns = numericScore(
+      match.innings_a_runs
+    );
   }
 
   if (secondRuns === null) {
-    secondRuns = numericScore(match.innings_b_runs);
+    secondRuns = numericScore(
+      match.innings_b_runs
+    );
   }
 
   if (firstOvers === null) {
@@ -178,19 +197,31 @@ function getCricketStats(match) {
     );
   }
 
-  if (firstRuns === null && battingFirst === clubA) {
+  if (
+    firstRuns === null &&
+    battingFirst === clubA
+  ) {
     firstRuns = numericScore(match.runs_a);
   }
 
-  if (firstRuns === null && battingFirst === clubB) {
+  if (
+    firstRuns === null &&
+    battingFirst === clubB
+  ) {
     firstRuns = numericScore(match.runs_b);
   }
 
-  if (secondRuns === null && battingFirst === clubA) {
+  if (
+    secondRuns === null &&
+    battingFirst === clubA
+  ) {
     secondRuns = numericScore(match.runs_b);
   }
 
-  if (secondRuns === null && battingFirst === clubB) {
+  if (
+    secondRuns === null &&
+    battingFirst === clubB
+  ) {
     secondRuns = numericScore(match.runs_a);
   }
 
@@ -217,54 +248,74 @@ function getResultForClub(match, clubId) {
       : Number(match.winner_club_id);
 
   if (winner !== null) {
-    return winner === club ? "win" : "loss";
+    return winner === club
+      ? "win"
+      : "loss";
   }
 
   const scoreA = numericScore(match.score_a);
   const scoreB = numericScore(match.score_b);
 
-  if (scoreA !== null && scoreB !== null) {
+  if (
+    scoreA !== null &&
+    scoreB !== null
+  ) {
     if (scoreA === scoreB) {
       return "draw";
     }
 
-    if (club === clubA && scoreA > scoreB) {
+    if (
+      club === clubA &&
+      scoreA > scoreB
+    ) {
       return "win";
     }
 
-    if (club === clubB && scoreB > scoreA) {
+    if (
+      club === clubB &&
+      scoreB > scoreA
+    ) {
       return "win";
     }
 
     return "loss";
   }
 
-  const cricket = getCricketStats(match);
+  const cricket =
+    getCricketStats(match);
 
   if (
     cricket.firstRuns !== null &&
     cricket.secondRuns !== null &&
     cricket.battingFirst !== null
   ) {
-    const firstClub = cricket.battingFirst;
+    const firstClub =
+      cricket.battingFirst;
 
     const secondClub =
-      firstClub === clubA ? clubB : clubA;
+      firstClub === clubA
+        ? clubB
+        : clubA;
 
-    if (cricket.firstRuns === cricket.secondRuns) {
+    if (
+      cricket.firstRuns ===
+      cricket.secondRuns
+    ) {
       return "draw";
     }
 
     if (
       club === firstClub &&
-      cricket.firstRuns > cricket.secondRuns
+      cricket.firstRuns >
+        cricket.secondRuns
     ) {
       return "win";
     }
 
     if (
       club === secondClub &&
-      cricket.secondRuns > cricket.firstRuns
+      cricket.secondRuns >
+        cricket.firstRuns
     ) {
       return "win";
     }
@@ -279,8 +330,12 @@ function getResultForClub(match, clubId) {
    SPORT POINTS
 ============================================================ */
 
-function getSportPoints(sport, result) {
-  const name = String(sport || "").toLowerCase();
+function getSportPoints(
+  sport,
+  result
+) {
+  const name =
+    String(sport || "").toLowerCase();
 
   if (name === "football") {
     if (result === "win") return 3;
@@ -317,6 +372,7 @@ function getSportPoints(sport, result) {
   }
 
   if (result === "win") return 3;
+
   if (result === "draw") return 1;
 
   return 0;
@@ -351,6 +407,7 @@ function buildSportLeaderboard(
 
       cricketRunsFor: 0,
       cricketOversFor: 0,
+
       cricketRunsAgainst: 0,
       cricketOversAgainst: 0,
 
@@ -360,45 +417,67 @@ function buildSportLeaderboard(
     };
   });
 
-  const completed = matches.filter(
-    (match) =>
-      isFinal(match.status) &&
-      Number(match.event_id) === Number(eventId)
-  );
+  const completed =
+    matches.filter(
+      (match) =>
+        isFinal(match.status) &&
+        Number(match.event_id) ===
+          Number(eventId)
+    );
 
   completed.forEach((match) => {
-    const clubA = table[match.club_a_id];
-    const clubB = table[match.club_b_id];
+    const clubA =
+      table[match.club_a_id];
+
+    const clubB =
+      table[match.club_b_id];
 
     if (!clubA || !clubB) return;
 
     clubA.played += 1;
     clubB.played += 1;
 
-    const resultA = getResultForClub(
-      match,
-      match.club_a_id
-    );
+    const resultA =
+      getResultForClub(
+        match,
+        match.club_a_id
+      );
 
-    const resultB = getResultForClub(
-      match,
-      match.club_b_id
-    );
+    const resultB =
+      getResultForClub(
+        match,
+        match.club_b_id
+      );
 
-    if (resultA === "win") clubA.wins += 1;
-    if (resultB === "win") clubB.wins += 1;
+    if (resultA === "win")
+      clubA.wins += 1;
 
-    if (resultA === "draw") clubA.draws += 1;
-    if (resultB === "draw") clubB.draws += 1;
+    if (resultB === "win")
+      clubB.wins += 1;
 
-    if (resultA === "loss") clubA.losses += 1;
-    if (resultB === "loss") clubB.losses += 1;
+    if (resultA === "draw")
+      clubA.draws += 1;
 
-    if (resultA === "no_result") clubA.noResults += 1;
-    if (resultB === "no_result") clubB.noResults += 1;
+    if (resultB === "draw")
+      clubB.draws += 1;
 
-    const scoreA = numericScore(match.score_a);
-    const scoreB = numericScore(match.score_b);
+    if (resultA === "loss")
+      clubA.losses += 1;
+
+    if (resultB === "loss")
+      clubB.losses += 1;
+
+    if (resultA === "no_result")
+      clubA.noResults += 1;
+
+    if (resultB === "no_result")
+      clubB.noResults += 1;
+
+    const scoreA =
+      numericScore(match.score_a);
+
+    const scoreB =
+      numericScore(match.score_b);
 
     if (
       scoreA !== null &&
@@ -415,7 +494,8 @@ function buildSportLeaderboard(
       String(sport || "").toLowerCase() ===
       "cricket"
     ) {
-      const cricket = getCricketStats(match);
+      const cricket =
+        getCricketStats(match);
 
       if (
         cricket.battingFirst !== null &&
@@ -428,12 +508,16 @@ function buildSportLeaderboard(
           cricket.battingFirst;
 
         const secondClub =
-          firstClub === Number(match.club_a_id)
+          firstClub ===
+          Number(match.club_a_id)
             ? Number(match.club_b_id)
             : Number(match.club_a_id);
 
-        const firstRow = table[firstClub];
-        const secondRow = table[secondClub];
+        const firstRow =
+          table[firstClub];
+
+        const secondRow =
+          table[secondClub];
 
         if (firstRow && secondRow) {
           firstRow.cricketRunsFor +=
@@ -463,92 +547,137 @@ function buildSportLeaderboard(
       }
     }
 
-    clubA.points += getSportPoints(
-      sport,
-      resultA
-    );
+    clubA.points +=
+      getSportPoints(
+        sport,
+        resultA
+      );
 
-    clubB.points += getSportPoints(
-      sport,
-      resultB
-    );
+    clubB.points +=
+      getSportPoints(
+        sport,
+        resultB
+      );
   });
 
-  Object.values(table).forEach((club) => {
-    club.pd = club.pf - club.pa;
+  Object.values(table).forEach(
+    (club) => {
+      club.pd =
+        club.pf - club.pa;
 
-    if (
-      String(sport || "").toLowerCase() ===
-      "cricket"
-    ) {
       if (
-        club.cricketOversFor > 0 &&
-        club.cricketOversAgainst > 0
+        String(sport || "").toLowerCase() ===
+        "cricket"
       ) {
-        const runRateFor =
-          club.cricketRunsFor /
-          club.cricketOversFor;
+        if (
+          club.cricketOversFor > 0 &&
+          club.cricketOversAgainst > 0
+        ) {
+          const runRateFor =
+            club.cricketRunsFor /
+            club.cricketOversFor;
 
-        const runRateAgainst =
-          club.cricketRunsAgainst /
-          club.cricketOversAgainst;
+          const runRateAgainst =
+            club.cricketRunsAgainst /
+            club.cricketOversAgainst;
 
-        club.nrr =
-          runRateFor - runRateAgainst;
-      } else {
-        club.nrr = 0;
+          club.nrr =
+            runRateFor -
+            runRateAgainst;
+        } else {
+          club.nrr = 0;
+        }
       }
     }
-  });
+  );
 
   const sportName =
     String(sport || "").toLowerCase();
 
-  const rows = Object.values(table).sort(
-    (a, b) => {
-      if (b.points !== a.points) {
-        return b.points - a.points;
-      }
-
-      if (b.wins !== a.wins) {
-        return b.wins - a.wins;
-      }
-
-      if (sportName === "cricket") {
-        if (b.nrr !== a.nrr) {
-          return b.nrr - a.nrr;
+  const rows =
+    Object.values(table).sort(
+      (a, b) => {
+        if (
+          b.points !== a.points
+        ) {
+          return (
+            b.points -
+            a.points
+          );
         }
 
-        return (
-          b.cricketRunsFor -
-          a.cricketRunsFor
+        if (
+          b.wins !== a.wins
+        ) {
+          return (
+            b.wins -
+            a.wins
+          );
+        }
+
+        if (
+          sportName === "cricket"
+        ) {
+          if (
+            b.nrr !== a.nrr
+          ) {
+            return (
+              b.nrr -
+              a.nrr
+            );
+          }
+
+          return (
+            b.cricketRunsFor -
+            a.cricketRunsFor
+          );
+        }
+
+        if (
+          b.pd !== a.pd
+        ) {
+          return (
+            b.pd -
+            a.pd
+          );
+        }
+
+        if (
+          b.pf !== a.pf
+        ) {
+          return (
+            b.pf -
+            a.pf
+          );
+        }
+
+        return a.name.localeCompare(
+          b.name
         );
       }
-
-      if (b.pd !== a.pd) {
-        return b.pd - a.pd;
-      }
-
-      if (b.pf !== a.pf) {
-        return b.pf - a.pf;
-      }
-
-      return a.name.localeCompare(b.name);
-    }
-  );
+    );
 
   return {
     rows,
-    completedCount: completed.length,
+    completedCount:
+      completed.length,
   };
 }
 
 function formatNumber(value) {
-  if (!Number.isFinite(Number(value))) {
+  if (
+    !Number.isFinite(
+      Number(value)
+    )
+  ) {
     return "0";
   }
 
-  if (Number.isInteger(Number(value))) {
+  if (
+    Number.isInteger(
+      Number(value)
+    )
+  ) {
     return Number(value);
   }
 
@@ -556,9 +685,12 @@ function formatNumber(value) {
 }
 
 function formatNRR(value) {
-  const number = Number(value || 0);
+  const number =
+    Number(value || 0);
 
-  if (!Number.isFinite(number)) {
+  if (
+    !Number.isFinite(number)
+  ) {
     return "0.000";
   }
 
@@ -574,12 +706,23 @@ function formatNRR(value) {
 ============================================================ */
 
 export default function Home() {
-  const [matches, setMatches] = useState([]);
-  const [points, setPoints] = useState({});
-  const [events, setEvents] = useState([]);
-  const [clubRows, setClubRows] = useState([]);
-  const [eventResults, setEventResults] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [matches, setMatches] =
+    useState([]);
+
+  const [points, setPoints] =
+    useState({});
+
+  const [events, setEvents] =
+    useState([]);
+
+  const [clubRows, setClubRows] =
+    useState([]);
+
+  const [eventResults, setEventResults] =
+    useState([]);
+
+  const [loading, setLoading] =
+    useState(true);
 
   const [
     selectedTeamSport,
@@ -587,9 +730,13 @@ export default function Home() {
   ] = useState("");
 
   const [
-    expandedClub,
-    setExpandedClub,
+    selectedClub,
+    setSelectedClub,
   ] = useState(null);
+
+  /* ============================================================
+     LOAD DATA
+  ============================================================ */
 
   async function load() {
     setLoading(true);
@@ -599,14 +746,17 @@ export default function Home() {
         data: matchData,
         error: matchError,
       },
+
       {
         data: resultData,
         error: resultError,
       },
+
       {
         data: eventData,
         error: eventError,
       },
+
       {
         data: clubData,
         error: clubError,
@@ -662,11 +812,22 @@ export default function Home() {
           club_a:club_a_id(name),
           club_b:club_b_id(name)
         `)
-        .order("match_time", {
-          ascending: true,
-        }),
+        .order(
+          "match_time",
+          {
+            ascending: true,
+          }
+        ),
 
-      /* EVENT RESULTS + EVENT INFORMATION */
+      /*
+       * IMPORTANT:
+       * We now fetch event information together
+       * with event_results.
+       *
+       * This is what allows the overall club
+       * name to show:
+       * SPORT / EVENT / POSITION / POINTS
+       */
       supabase
         .from("event_results")
         .select(`
@@ -674,8 +835,33 @@ export default function Home() {
           event_id,
           club_id,
           position,
-          points
-        `),
+          points,
+          created_at,
+
+          clubs(
+            name
+          ),
+
+          events(
+            id,
+            name,
+            gender,
+            category,
+            points_type
+          )
+        `)
+        .order(
+          "event_id",
+          {
+            ascending: true,
+          }
+        )
+        .order(
+          "position",
+          {
+            ascending: true,
+          }
+        ),
 
       supabase
         .from("events")
@@ -716,66 +902,96 @@ export default function Home() {
       );
     }
 
-    setMatches(matchData || []);
-    setEvents(eventData || []);
-    setClubRows(clubData || []);
-    setEventResults(resultData || []);
+    setMatches(
+      matchData || []
+    );
+
+    setEvents(
+      eventData || []
+    );
+
+    setClubRows(
+      clubData || []
+    );
+
+    setEventResults(
+      resultData || []
+    );
 
     /* ========================================================
        OVERALL POINT TOTALS
+
+       ONLY event_results are used here.
+       This prevents deleted/finalized matches from
+       accidentally adding to the Overall Championship.
     ======================================================== */
 
     const totals = {};
 
-    (resultData || []).forEach((result) => {
-      const club =
-        (clubData || []).find(
-          (item) =>
-            Number(item.id) ===
-            Number(result.club_id)
-        );
-
-      const name = club?.name;
+    (
+      resultData || []
+    ).forEach((result) => {
+      const name =
+        result.clubs?.name;
 
       if (name) {
         totals[name] =
           (totals[name] || 0) +
-          Number(result.points || 0);
+          Number(
+            result.points || 0
+          );
       }
     });
 
-    defaultClubs.forEach((club) => {
-      totals[club] =
-        totals[club] || 0;
-    });
+    defaultClubs.forEach(
+      (club) => {
+        totals[club] =
+          totals[club] || 0;
+      }
+    );
 
-    (clubData || []).forEach((club) => {
+    (
+      clubData || []
+    ).forEach((club) => {
       totals[club.name] =
         totals[club.name] || 0;
     });
 
     setPoints(totals);
 
+    /* ========================================================
+       TEAM EVENTS
+    ======================================================== */
+
     const teamEvents =
-      (eventData || []).filter((event) =>
-        isTeamEvent(event)
+      (
+        eventData || []
+      ).filter(
+        (event) =>
+          isTeamEvent(event)
       );
 
-    if (teamEvents.length > 0) {
-      setSelectedTeamSport((current) => {
-        if (
-          current &&
-          teamEvents.some(
-            (event) =>
-              String(event.id) ===
-              String(current)
-          )
-        ) {
-          return current;
-        }
+    if (
+      teamEvents.length > 0
+    ) {
+      setSelectedTeamSport(
+        (current) => {
+          if (
+            current &&
+            teamEvents.some(
+              (event) =>
+                String(event.id) ===
+                String(current)
+            )
+          ) {
+            return current;
+          }
 
-        return String(teamEvents[0].id);
-      });
+          return String(
+            teamEvents[0].id
+          );
+        }
+      );
     } else {
       setSelectedTeamSport("");
     }
@@ -786,74 +1002,94 @@ export default function Home() {
   useEffect(() => {
     load();
 
-    const channel = supabase
-      .channel("euphoria-public-live")
-
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "matches",
-        },
-        load
-      )
-
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "event_results",
-        },
-        load
-      )
-
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "events",
-        },
-        load
-      )
-
-      .subscribe();
+    const channel =
+      supabase
+        .channel(
+          "euphoria-public-live"
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "matches",
+          },
+          load
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "event_results",
+          },
+          load
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "events",
+          },
+          load
+        )
+        .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(
+        channel
+      );
     };
   }, []);
+
+  /* ============================================================
+     MATCH FILTERS
+  ============================================================ */
 
   const upcomingMatches =
     matches.filter(
       (match) =>
-        String(match.status || "").toLowerCase() ===
+        String(
+          match.status || ""
+        ).toLowerCase() ===
         "upcoming"
     );
 
   const liveMatches =
     matches.filter(
       (match) =>
-        String(match.status || "").toLowerCase() ===
+        String(
+          match.status || ""
+        ).toLowerCase() ===
         "live"
     );
 
   const completedMatches =
-    matches.filter((match) =>
-      isFinal(match.status)
+    matches.filter(
+      (match) =>
+        isFinal(match.status)
     );
 
-  const leaderboard = Object.keys(points).sort(
-    (a, b) =>
-      (points[b] || 0) -
-      (points[a] || 0)
-  );
+  /* ============================================================
+     OVERALL LEADERBOARD
+  ============================================================ */
+
+  const leaderboard =
+    Object.keys(points).sort(
+      (a, b) =>
+        (points[b] || 0) -
+        (points[a] || 0)
+    );
+
+  /* ============================================================
+     TEAM SPORTS
+  ============================================================ */
 
   const teamSports =
-    events.filter((event) =>
-      isTeamEvent(event)
+    events.filter(
+      (event) =>
+        isTeamEvent(event)
     );
 
   const selectedEvent =
@@ -884,68 +1120,99 @@ export default function Home() {
     ).toLowerCase();
 
   const isCricket =
-    selectedSportName === "cricket";
+    selectedSportName ===
+    "cricket";
 
   const isFootball =
-    selectedSportName === "football";
+    selectedSportName ===
+    "football";
 
   const usesPD =
-    selectedSportName === "basketball" ||
-    selectedSportName === "volleyball";
+    selectedSportName ===
+      "basketball" ||
+    selectedSportName ===
+      "volleyball";
 
-  /* ==========================================================
-     EVENT BREAKDOWN FOR SELECTED CLUB
-  ========================================================== */
+  /* ============================================================
+     COMPLETED MATCHES GROUPED BY SPORT
+  ============================================================ */
 
-  const selectedClubResults =
-    expandedClub === null
-      ? []
-      : eventResults
-          .filter(
-            (result) =>
-              Number(result.club_id) ===
-              Number(expandedClub)
-          )
-          .map((result) => {
-            const event =
-              events.find(
-                (item) =>
-                  Number(item.id) ===
-                  Number(result.event_id)
-              );
+  const completedBySport = {};
 
-            return {
-              ...result,
-              event,
-            };
-          })
-          .sort((a, b) => {
-            return (
-              Number(a.position || 999) -
-              Number(b.position || 999)
-            );
-          });
+  completedMatches.forEach(
+    (match) => {
+      const sport =
+        match.events?.name ||
+        "Other";
+
+      const gender =
+        match.events?.gender || "";
+
+      const key = `${sport}|||${gender}`;
+
+      if (!completedBySport[key]) {
+        completedBySport[key] = {
+          sport,
+          gender,
+          matches: [],
+        };
+      }
+
+      completedBySport[key].matches.push(
+        match
+      );
+    }
+  );
+
+  const completedSportGroups =
+    Object.values(
+      completedBySport
+    ).sort((a, b) =>
+      a.sport.localeCompare(
+        b.sport
+      )
+    );
+
+  /* ============================================================
+     MEDAL
+  ============================================================ */
+
+  function getMedal(index) {
+    if (index === 0) return "🥇";
+    if (index === 1) return "🥈";
+    if (index === 2) return "🥉";
+
+    return index + 1;
+  }
+
+  /* ============================================================
+     MATCH CARD
+  ============================================================ */
 
   function MatchCard({ match }) {
     return (
       <div className="match">
         <div>
           <b>
-            {match.club_a?.name || "TBD"}
+            {match.club_a?.name ||
+              "TBD"}
           </b>
 
           <strong>
-            {match.score_a || "—"}
+            {match.score_a ||
+              "—"}
           </strong>
         </div>
 
         <div>
           <b>
-            {match.club_b?.name || "TBD"}
+            {match.club_b?.name ||
+              "TBD"}
           </b>
 
           <strong>
-            {match.score_b || "—"}
+            {match.score_b ||
+              "—"}
           </strong>
         </div>
 
@@ -960,40 +1227,34 @@ export default function Home() {
     );
   }
 
-  function getMedal(index) {
-    if (index === 0) return "🥇";
-    if (index === 1) return "🥈";
-    if (index === 2) return "🥉";
+  /* ============================================================
+     CLUB EVENT DETAILS
+  ============================================================ */
 
-    return index + 1;
-  }
-
-  function getPositionDisplay(position) {
-    const number = Number(position);
-
-    if (number === 1) return "🥇 1st";
-    if (number === 2) return "🥈 2nd";
-    if (number === 3) return "🥉 3rd";
-
-    if (number === 4) return "4th";
-    if (number === 5) return "5th";
-    if (number === 6) return "6th";
-    if (number === 7) return "7th";
-    if (number === 8) return "8th";
-    if (number === 9) return "9th";
-    if (number === 10) return "10th";
-
-    return `${number}th`;
-  }
+  const selectedClubDetails =
+    selectedClub
+      ? eventResults
+          .filter(
+            (result) =>
+              String(
+                result.clubs?.name
+              ) ===
+              String(selectedClub)
+          )
+          .sort(
+            (a, b) =>
+              Number(a.event_id) -
+              Number(b.event_id)
+          )
+      : [];
 
   return (
     <main>
-
       <style jsx>{`
 
-        /* ======================================================
-           PREMIUM LEADERBOARD
-        ====================================================== */
+        * {
+          box-sizing: border-box;
+        }
 
         .leaderboardShell {
           position: relative;
@@ -1084,7 +1345,12 @@ export default function Home() {
           );
 
           border: 1px solid
-            rgba(255, 255, 255, 0.11);
+            rgba(
+              255,
+              255,
+              255,
+              0.11
+            );
 
           font-size: 12px;
           font-weight: 800;
@@ -1098,8 +1364,14 @@ export default function Home() {
           margin-top: 9px;
 
           border-radius: 13px;
+
           border: 1px solid
-            rgba(255, 255, 255, 0.13);
+            rgba(
+              255,
+              255,
+              255,
+              0.13
+            );
 
           background: rgba(
             255,
@@ -1113,110 +1385,23 @@ export default function Home() {
           font-size: 14px;
         }
 
-        /* ======================================================
-           EVENT BREAKDOWN
-        ====================================================== */
-
-        .eventBreakdown {
-          margin: 0 12px 12px 57px;
-          padding: 14px;
-
-          border-radius: 16px;
-
-          background:
-            rgba(
-              124,
-              76,
-              255,
-              0.08
-            );
-
-          border: 1px solid
-            rgba(
-              255,
-              255,
-              255,
-              0.08
-            );
-        }
-
-        .eventBreakdownTitle {
-          font-size: 11px;
-          font-weight: 900;
-          letter-spacing: 1px;
-          opacity: 0.55;
-          margin-bottom: 9px;
-        }
-
-        .eventBreakdownRow {
-          display: grid;
-          grid-template-columns:
-            minmax(0, 1fr)
-            95px
-            65px;
-
-          align-items: center;
-          gap: 10px;
-
-          min-height: 42px;
-
-          border-bottom: 1px solid
-            rgba(
-              255,
-              255,
-              255,
-              0.06
-            );
-        }
-
-        .eventBreakdownRow:last-child {
-          border-bottom: none;
-        }
-
-        .eventBreakdownEvent {
-          min-width: 0;
-        }
-
-        .eventBreakdownName {
-          font-weight: 800;
-          font-size: 13px;
-        }
-
-        .eventBreakdownGender {
-          margin-top: 2px;
-          font-size: 9px;
-          opacity: 0.5;
-        }
-
-        .eventBreakdownPosition {
-          text-align: center;
-          font-size: 12px;
-          font-weight: 800;
-        }
-
-        .eventBreakdownPoints {
-          text-align: right;
-          font-size: 15px;
-          font-weight: 950;
-        }
-
-        .eventBreakdownEmpty {
-          font-size: 12px;
-          opacity: 0.55;
-          padding: 8px 0;
-        }
-
-        /* ======================================================
+        /* ====================================================
            TABLE
-        ====================================================== */
+        ==================================================== */
 
         .standingsFrame {
           position: relative;
           overflow: hidden;
 
           border-radius: 20px;
+
           border: 1px solid
-            rgba(255,255,255,0.10);
+            rgba(
+              255,
+              255,
+              255,
+              0.10
+            );
 
           background: rgba(
             0,
@@ -1255,7 +1440,12 @@ export default function Home() {
           );
 
           border-bottom: 1px solid
-            rgba(255,255,255,0.08);
+            rgba(
+              255,
+              255,
+              255,
+              0.08
+            );
         }
 
         .standingsTable td {
@@ -1265,12 +1455,12 @@ export default function Home() {
           font-size: 14px;
 
           border-bottom: 1px solid
-            rgba(255,255,255,0.065);
-        }
-
-        .standingsTable tbody tr {
-          transition:
-            background 0.2s ease;
+            rgba(
+              255,
+              255,
+              255,
+              0.065
+            );
         }
 
         .standingsTable tbody tr:hover {
@@ -1302,41 +1492,42 @@ export default function Home() {
           background:
             linear-gradient(
               90deg,
-              rgba(255,215,80,0.10),
-              rgba(255,255,255,0.025)
+              rgba(
+                255,
+                215,
+                80,
+                0.10
+              ),
+              rgba(
+                255,
+                255,
+                255,
+                0.025
+              )
             );
         }
 
         .secondRow {
-          background:
-            rgba(
-              255,
-              255,
-              255,
-              0.025
-            );
+          background: rgba(
+            255,
+            255,
+            255,
+            0.025
+          );
         }
 
         .thirdRow {
-          background:
-            rgba(
-              255,
-              255,
-              255,
-              0.018
-            );
+          background: rgba(
+            255,
+            255,
+            255,
+            0.018
+          );
         }
 
-        .tableLegend {
-          margin-top: 13px;
-          font-size: 11px;
-          line-height: 1.7;
-          opacity: 0.55;
-        }
-
-        /* ======================================================
-           MOBILE
-        ====================================================== */
+        /* ====================================================
+           MOBILE STANDINGS
+        ==================================================== */
 
         .mobileStandings {
           display: none;
@@ -1346,7 +1537,9 @@ export default function Home() {
           display: grid;
 
           grid-template-columns:
-            48px minmax(0, 1fr) 72px;
+            48px
+            minmax(0, 1fr)
+            72px;
 
           align-items: center;
           gap: 10px;
@@ -1355,9 +1548,12 @@ export default function Home() {
           padding: 12px 14px;
 
           border-bottom: 1px solid
-            rgba(255,255,255,0.065);
-
-          box-sizing: border-box;
+            rgba(
+              255,
+              255,
+              255,
+              0.065
+            );
         }
 
         .mobileStandingRow:last-child {
@@ -1368,7 +1564,12 @@ export default function Home() {
           background:
             linear-gradient(
               90deg,
-              rgba(255,215,80,0.11),
+              rgba(
+                255,
+                215,
+                80,
+                0.11
+              ),
               transparent
             );
         }
@@ -1383,13 +1584,12 @@ export default function Home() {
 
           border-radius: 13px;
 
-          background:
-            rgba(
-              255,
-              255,
-              255,
-              0.065
-            );
+          background: rgba(
+            255,
+            255,
+            255,
+            0.065
+          );
 
           font-weight: 900;
           font-size: 16px;
@@ -1444,9 +1644,9 @@ export default function Home() {
           opacity: 0.5;
         }
 
-        /* ======================================================
+        /* ====================================================
            OVERALL CHAMPIONSHIP
-        ====================================================== */
+        ==================================================== */
 
         .overallChampionship {
           position: relative;
@@ -1460,23 +1660,45 @@ export default function Home() {
           background:
             linear-gradient(
               145deg,
-              rgba(124,76,255,0.16),
-              rgba(255,255,255,0.035)
+              rgba(
+                124,
+                76,
+                255,
+                0.16
+              ),
+              rgba(
+                255,
+                255,
+                255,
+                0.035
+              )
             );
 
           border: 1px solid
-            rgba(255,255,255,0.10);
+            rgba(
+              255,
+              255,
+              255,
+              0.10
+            );
 
           box-shadow:
             0 18px 50px
-              rgba(0,0,0,0.20);
+              rgba(
+                0,
+                0,
+                0,
+                0.20
+              );
         }
 
         .overallRow {
           display: grid;
 
           grid-template-columns:
-            45px minmax(0,1fr) 80px;
+            45px
+            minmax(0,1fr)
+            80px;
 
           align-items: center;
           gap: 12px;
@@ -1485,21 +1707,11 @@ export default function Home() {
           padding: 9px 12px;
 
           border-bottom: 1px solid
-            rgba(255,255,255,0.07);
-
-          cursor: pointer;
-
-          transition:
-            background 0.2s ease;
-        }
-
-        .overallRow:hover {
-          background:
             rgba(
               255,
               255,
               255,
-              0.045
+              0.07
             );
         }
 
@@ -1513,17 +1725,25 @@ export default function Home() {
           font-weight: 900;
         }
 
-        .overallClub {
+        .overallClubButton {
+          appearance: none;
+          border: none;
+          background: transparent;
+          color: inherit;
+
+          padding: 0;
+          margin: 0;
+
+          text-align: left;
+
           font-weight: 850;
           font-size: 15px;
+
+          cursor: pointer;
         }
 
-        .overallClubHint {
-          display: block;
-          margin-top: 3px;
-          font-size: 9px;
-          opacity: 0.38;
-          font-weight: 600;
+        .overallClubButton:hover {
+          text-decoration: underline;
         }
 
         .overallPoints {
@@ -1532,9 +1752,211 @@ export default function Home() {
           font-weight: 950;
         }
 
-        /* ======================================================
-           MOBILE
-        ====================================================== */
+        /* ====================================================
+           CLUB DETAILS
+        ==================================================== */
+
+        .clubDetails {
+          margin-top: 18px;
+          padding: 20px;
+
+          border-radius: 18px;
+
+          background: rgba(
+            255,
+            255,
+            255,
+            0.045
+          );
+
+          border: 1px solid
+            rgba(
+              255,
+              255,
+              255,
+              0.09
+            );
+        }
+
+        .clubDetailsHeader {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 15px;
+
+          margin-bottom: 15px;
+        }
+
+        .clubDetailsHeader h3 {
+          margin: 0;
+          font-size: 20px;
+        }
+
+        .closeDetails {
+          border: 1px solid
+            rgba(
+              255,
+              255,
+              255,
+              0.12
+            );
+
+          background: rgba(
+            255,
+            255,
+            255,
+            0.06
+          );
+
+          color: inherit;
+
+          padding: 8px 12px;
+
+          border-radius: 10px;
+
+          cursor: pointer;
+        }
+
+        .clubEventRow {
+          display: grid;
+
+          grid-template-columns:
+            minmax(0, 1fr)
+            100px
+            100px;
+
+          gap: 10px;
+
+          align-items: center;
+
+          padding: 14px 10px;
+
+          border-bottom: 1px solid
+            rgba(
+              255,
+              255,
+              255,
+              0.07
+            );
+        }
+
+        .clubEventRow:last-child {
+          border-bottom: none;
+        }
+
+        .clubEventName {
+          font-weight: 800;
+        }
+
+        .clubEventMeta {
+          margin-top: 4px;
+          font-size: 11px;
+          opacity: 0.55;
+        }
+
+        .clubEventRank,
+        .clubEventPoints {
+          text-align: center;
+        }
+
+        .clubEventRank {
+          font-weight: 800;
+        }
+
+        .clubEventPoints {
+          font-weight: 950;
+          font-size: 17px;
+        }
+
+        /* ====================================================
+           COMPLETED MATCHES - COLLAPSIBLE
+        ==================================================== */
+
+        .completedSportGroup {
+          margin-bottom: 12px;
+
+          border-radius: 16px;
+
+          border: 1px solid
+            rgba(
+              255,
+              255,
+              255,
+              0.08
+            );
+
+          overflow: hidden;
+
+          background: rgba(
+            255,
+            255,
+            255,
+            0.025
+          );
+        }
+
+        .completedSportGroup summary {
+          list-style: none;
+
+          cursor: pointer;
+
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+
+          gap: 15px;
+
+          padding: 16px 18px;
+
+          font-weight: 850;
+
+          background: rgba(
+            255,
+            255,
+            255,
+            0.045
+          );
+        }
+
+        .completedSportGroup summary::-webkit-details-marker {
+          display: none;
+        }
+
+        .completedSportGroup summary::after {
+          content: "＋";
+
+          font-size: 20px;
+          opacity: 0.7;
+        }
+
+        .completedSportGroup[open]
+          summary::after {
+          content: "−";
+        }
+
+        .completedSportTitle {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+        }
+
+        .completedSportName {
+          font-size: 15px;
+        }
+
+        .completedSportMeta {
+          font-size: 10px;
+          opacity: 0.55;
+          font-weight: 600;
+        }
+
+        .completedSportMatches {
+          padding: 4px 12px 12px;
+        }
+
+        /* ====================================================
+           RESPONSIVE
+        ==================================================== */
 
         @media (max-width: 700px) {
 
@@ -1552,10 +1974,6 @@ export default function Home() {
             margin-top: 14px;
           }
 
-          .standingsFrame {
-            border-radius: 17px;
-          }
-
           .standingsDesktop {
             display: none;
           }
@@ -1564,53 +1982,46 @@ export default function Home() {
             display: block;
           }
 
-          .leaderboardShell .tableLegend {
-            padding: 0 4px;
-          }
-
           .overallChampionship {
             padding: 18px;
           }
 
           .overallRow {
             grid-template-columns:
-              40px minmax(0,1fr) 65px;
+              40px
+              minmax(0,1fr)
+              65px;
           }
 
           .overallPoints {
             font-size: 20px;
           }
 
-          .eventBreakdown {
-            margin-left: 0;
-            margin-right: 0;
-          }
-
-          .eventBreakdownRow {
+          .clubEventRow {
             grid-template-columns:
-              minmax(0, 1fr)
-              82px
-              58px;
-
-            gap: 6px;
+              minmax(0,1fr)
+              65px
+              65px;
           }
 
-          .eventBreakdownName {
+          .clubEventRank,
+          .clubEventPoints {
             font-size: 12px;
           }
 
-          .eventBreakdownPosition {
-            font-size: 11px;
+          .clubEventPoints {
+            font-size: 16px;
           }
 
-          .eventBreakdownPoints {
-            font-size: 14px;
+          .completedSportGroup summary {
+            padding: 15px;
           }
         }
+
       `}</style>
 
       {/* ======================================================
-         HEADER
+          HEADER
       ====================================================== */}
 
       <header>
@@ -1625,11 +2036,10 @@ export default function Home() {
       </header>
 
       {/* ======================================================
-         HERO
+          HERO
       ====================================================== */}
 
       <section className="hero">
-
         <small>
           INTER-CLUB SPORTS CHAMPIONSHIP
         </small>
@@ -1645,13 +2055,12 @@ export default function Home() {
           the race for the Euphoria
           Club Championship.
         </p>
-
       </section>
 
       <section className="wrap">
 
         {/* ====================================================
-           LIVE + UPCOMING
+            LIVE + UPCOMING
         ==================================================== */}
 
         <div className="grid">
@@ -1673,12 +2082,14 @@ export default function Home() {
                 No live matches right now.
               </p>
             ) : (
-              liveMatches.map((match) => (
-                <MatchCard
-                  key={match.id}
-                  match={match}
-                />
-              ))
+              liveMatches.map(
+                (match) => (
+                  <MatchCard
+                    key={match.id}
+                    match={match}
+                  />
+                )
+              )
             )}
 
           </div>
@@ -1700,12 +2111,14 @@ export default function Home() {
                 No upcoming matches.
               </p>
             ) : (
-              upcomingMatches.map((match) => (
-                <MatchCard
-                  key={match.id}
-                  match={match}
-                />
-              ))
+              upcomingMatches.map(
+                (match) => (
+                  <MatchCard
+                    key={match.id}
+                    match={match}
+                  />
+                )
+              )
             )}
 
           </div>
@@ -1713,7 +2126,8 @@ export default function Home() {
         </div>
 
         {/* ====================================================
-           COMPLETED
+            COMPLETED MATCHES
+            COLLAPSED + GROUPED BY SPORT
         ==================================================== */}
 
         <div className="card section">
@@ -1724,23 +2138,70 @@ export default function Home() {
 
           {loading ? (
             <p>Loading...</p>
-          ) : completedMatches.length === 0 ? (
+          ) : completedSportGroups.length === 0 ? (
             <p className="muted">
               No completed matches yet.
             </p>
           ) : (
-            completedMatches.map((match) => (
-              <MatchCard
-                key={match.id}
-                match={match}
-              />
-            ))
+
+            <div style={{ marginTop: "16px" }}>
+
+              {completedSportGroups.map(
+                (group) => (
+
+                  <details
+                    className="completedSportGroup"
+                    key={`${group.sport}-${group.gender}`}
+                  >
+
+                    <summary>
+
+                      <div className="completedSportTitle">
+
+                        <div className="completedSportName">
+                          {group.sport}
+                        </div>
+
+                        <div className="completedSportMeta">
+                          {group.gender}
+                          {" · "}
+                          {group.matches.length}
+                          {" "}
+                          {group.matches.length === 1
+                            ? "match"
+                            : "matches"}
+                        </div>
+
+                      </div>
+
+                    </summary>
+
+                    <div className="completedSportMatches">
+
+                      {group.matches.map(
+                        (match) => (
+                          <MatchCard
+                            key={match.id}
+                            match={match}
+                          />
+                        )
+                      )}
+
+                    </div>
+
+                  </details>
+
+                )
+              )}
+
+            </div>
+
           )}
 
         </div>
 
         {/* ====================================================
-           OVERALL CHAMPIONSHIP
+            OVERALL CHAMPIONSHIP
         ==================================================== */}
 
         <div className="overallChampionship">
@@ -1750,143 +2211,192 @@ export default function Home() {
           </h2>
 
           <p className="muted">
-            The race for the Euphoria
-            Championship.
+            Click a club to see the
+            events, rankings and points
+            that make up its total.
           </p>
 
-          <div style={{ marginTop: "16px" }}>
+          <div
+            style={{
+              marginTop: "16px",
+            }}
+          >
 
-            {leaderboard.map((club, index) => {
+            {leaderboard.map(
+              (club, index) => (
 
-              const clubData =
-                clubRows.find(
-                  (item) =>
-                    item.name === club
-                );
+                <div
+                  className="overallRow"
+                  key={club}
+                >
 
-              const clubId =
-                clubData?.id;
+                  <div className="overallPosition">
+                    {getMedal(index)}
+                  </div>
 
-              const isExpanded =
-                Number(expandedClub) ===
-                Number(clubId);
+                  <div>
 
-              return (
-                <div key={club}>
+                    <button
+                      className="overallClubButton"
+                      onClick={() =>
+                        setSelectedClub(
+                          selectedClub === club
+                            ? null
+                            : club
+                        )
+                      }
+                    >
+                      {club}
+                    </button>
+
+                  </div>
+
+                  <div className="overallPoints">
+                    {points[club] || 0}
+                  </div>
+
+                </div>
+
+              )
+            )}
+
+          </div>
+
+          {/* ==================================================
+              SELECTED CLUB DETAILS
+          ================================================== */}
+
+          {selectedClub && (
+
+            <div className="clubDetails">
+
+              <div className="clubDetailsHeader">
+
+                <h3>
+                  {selectedClub}
+                  {" · "}
+                  Event Breakdown
+                </h3>
+
+                <button
+                  className="closeDetails"
+                  onClick={() =>
+                    setSelectedClub(null)
+                  }
+                >
+                  Close
+                </button>
+
+              </div>
+
+              {selectedClubDetails.length === 0 ? (
+
+                <p className="muted">
+                  No event points have been
+                  awarded to this club yet.
+                </p>
+
+              ) : (
+
+                <div>
 
                   <div
-                    className="overallRow"
-                    onClick={() => {
-
-                      if (!clubId) return;
-
-                      setExpandedClub(
-                        isExpanded
-                          ? null
-                          : clubId
-                      );
+                    className="clubEventRow"
+                    style={{
+                      opacity: 0.55,
+                      fontSize: "10px",
+                      fontWeight: 800,
                     }}
                   >
 
-                    <div className="overallPosition">
-                      {getMedal(index)}
+                    <div>
+                      SPORT / EVENT
                     </div>
 
-                    <div className="overallClub">
-
-                      {club}
-
-                      <span className="overallClubHint">
-                        {isExpanded
-                          ? "Tap to hide event details"
-                          : "Tap to view event details"}
-                      </span>
-
+                    <div className="clubEventRank">
+                      RANK
                     </div>
 
-                    <div className="overallPoints">
-                      {points[club] || 0}
+                    <div className="clubEventPoints">
+                      POINTS
                     </div>
 
                   </div>
 
-                  {/* ==================================================
-                     EVENT BREAKDOWN
-                  ================================================== */}
+                  {selectedClubDetails.map(
+                    (result) => (
 
-                  {isExpanded && (
+                      <div
+                        className="clubEventRow"
+                        key={result.id}
+                      >
 
-                    <div className="eventBreakdown">
+                        <div>
 
-                      <div className="eventBreakdownTitle">
-                        EVENT-WISE POINTS
-                      </div>
+                          <div className="clubEventName">
+                            {result.events?.name ||
+                              "Event"}
+                          </div>
 
-                      {selectedClubResults.length === 0 ? (
+                          <div className="clubEventMeta">
+                            {result.events?.gender ||
+                              ""}
+                          </div>
 
-                        <div className="eventBreakdownEmpty">
-                          No event results recorded yet.
                         </div>
 
-                      ) : (
+                        <div className="clubEventRank">
+                          {result.position === 1
+                            ? "🥇 1st"
+                            : result.position === 2
+                            ? "🥈 2nd"
+                            : result.position === 3
+                            ? "🥉 3rd"
+                            : `${result.position}th`}
+                        </div>
 
-                        selectedClubResults.map(
-                          (result) => (
+                        <div className="clubEventPoints">
+                          {Number(
+                            result.points || 0
+                          )}
+                        </div>
 
-                            <div
-                              className="eventBreakdownRow"
-                              key={result.id}
-                            >
+                      </div>
 
-                              <div className="eventBreakdownEvent">
-
-                                <div className="eventBreakdownName">
-                                  {result.event?.name ||
-                                    "Unknown Event"}
-                                </div>
-
-                                {result.event?.gender && (
-                                  <div className="eventBreakdownGender">
-                                    {result.event.gender}
-                                  </div>
-                                )}
-
-                              </div>
-
-                              <div className="eventBreakdownPosition">
-                                {getPositionDisplay(
-                                  result.position
-                                )}
-                              </div>
-
-                              <div className="eventBreakdownPoints">
-                                {Number(
-                                  result.points || 0
-                                )}{" "}
-                                pts
-                              </div>
-
-                            </div>
-
-                          )
-                        )
-
-                      )}
-
-                    </div>
-
+                    )
                   )}
 
-                </div>
-              );
-            })}
+                  <div
+                    style={{
+                      marginTop: "15px",
+                      textAlign: "right",
+                      fontWeight: 900,
+                    }}
+                  >
+                    Total:{" "}
+                    {selectedClubDetails.reduce(
+                      (sum, result) =>
+                        sum +
+                        Number(
+                          result.points || 0
+                        ),
+                      0
+                    )}{" "}
+                    points
+                  </div>
 
-          </div>
+                </div>
+
+              )}
+
+            </div>
+
+          )}
 
         </div>
 
         {/* ====================================================
-           TEAM SPORT LEADERBOARD
+            TEAM SPORT LEADERBOARD
         ==================================================== */}
 
         <div className="section">
@@ -1924,7 +2434,8 @@ export default function Home() {
             {teamSports.length === 0 ? (
 
               <p className="muted">
-                No team sports have been added yet.
+                No team sports have been
+                added yet.
               </p>
 
             ) : (
@@ -1932,14 +2443,15 @@ export default function Home() {
               <>
 
                 <label>
-
                   <b>
                     Select Sport
                   </b>
 
                   <select
                     className="leaderboardSelect"
-                    value={selectedTeamSport}
+                    value={
+                      selectedTeamSport
+                    }
                     onChange={(event) =>
                       setSelectedTeamSport(
                         event.target.value
@@ -1947,16 +2459,20 @@ export default function Home() {
                     }
                   >
 
-                    {teamSports.map((event) => (
+                    {teamSports.map(
+                      (event) => (
 
-                      <option
-                        key={event.id}
-                        value={event.id}
-                      >
-                        {event.gender} · {event.name}
-                      </option>
+                        <option
+                          key={event.id}
+                          value={event.id}
+                        >
+                          {event.gender}
+                          {" · "}
+                          {event.name}
+                        </option>
 
-                    ))}
+                      )
+                    )}
 
                   </select>
 
@@ -1966,11 +2482,13 @@ export default function Home() {
 
                   <>
 
-                    {sportLeaderboard.completedCount === 0 ? (
+                    {sportLeaderboard.completedCount ===
+                    0 ? (
 
                       <div
                         style={{
-                          padding: "28px 0",
+                          padding:
+                            "28px 0",
                         }}
                       >
 
@@ -1991,14 +2509,15 @@ export default function Home() {
                       <>
 
                         {/* ==================================================
-                           DESKTOP STANDINGS
-                           PODIUM REMOVED
+                            DESKTOP TABLE
+                            PODIUM REMOVED
                         ================================================== */}
 
                         <div
                           className="standingsFrame standingsDesktop"
                           style={{
-                            marginTop: "20px",
+                            marginTop:
+                              "20px",
                           }}
                         >
 
@@ -2014,7 +2533,8 @@ export default function Home() {
 
                                 <th
                                   style={{
-                                    textAlign: "left",
+                                    textAlign:
+                                      "left",
                                   }}
                                 >
                                   CLUB
@@ -2091,23 +2611,33 @@ export default function Home() {
                             <tbody>
 
                               {sportLeaderboard.rows.map(
-                                (row, index) => (
+                                (
+                                  row,
+                                  index
+                                ) => (
 
                                   <tr
-                                    key={row.id}
+                                    key={
+                                      row.id
+                                    }
                                     className={
-                                      index === 0
+                                      index ===
+                                      0
                                         ? "leaderRow"
-                                        : index === 1
+                                        : index ===
+                                          1
                                         ? "secondRow"
-                                        : index === 2
+                                        : index ===
+                                          2
                                         ? "thirdRow"
                                         : ""
                                     }
                                   >
 
                                     <td className="positionCell">
-                                      {getMedal(index)}
+                                      {getMedal(
+                                        index
+                                      )}
                                     </td>
 
                                     <td className="clubCell">
@@ -2115,35 +2645,46 @@ export default function Home() {
                                     </td>
 
                                     <td>
-                                      {row.played}
+                                      {
+                                        row.played
+                                      }
                                     </td>
 
                                     <td>
-                                      {row.wins}
+                                      {
+                                        row.wins
+                                      }
                                     </td>
 
                                     {(isFootball ||
                                       (!isCricket &&
                                         !usesPD)) && (
                                       <td>
-                                        {row.draws}
+                                        {
+                                          row.draws
+                                        }
                                       </td>
                                     )}
 
                                     <td>
-                                      {row.losses}
+                                      {
+                                        row.losses
+                                      }
                                     </td>
 
                                     {isCricket && (
                                       <td>
-                                        {row.noResults}
+                                        {
+                                          row.noResults
+                                        }
                                       </td>
                                     )}
 
                                     {isCricket && (
                                       <td
                                         style={{
-                                          fontWeight: 850,
+                                          fontWeight:
+                                            850,
                                         }}
                                       >
                                         {formatNRR(
@@ -2155,13 +2696,17 @@ export default function Home() {
                                     {isFootball && (
                                       <td
                                         style={{
-                                          fontWeight: 850,
+                                          fontWeight:
+                                            850,
                                         }}
                                       >
-                                        {row.pd > 0
+                                        {row.pd >
+                                        0
                                           ? "+"
                                           : ""}
-                                        {row.pd}
+                                        {
+                                          row.pd
+                                        }
                                       </td>
                                     )}
 
@@ -2181,10 +2726,12 @@ export default function Home() {
 
                                         <td
                                           style={{
-                                            fontWeight: 850,
+                                            fontWeight:
+                                              850,
                                           }}
                                         >
-                                          {row.pd > 0
+                                          {row.pd >
+                                          0
                                             ? "+"
                                             : ""}
                                           {formatNumber(
@@ -2195,7 +2742,9 @@ export default function Home() {
                                     )}
 
                                     <td className="pointsCell">
-                                      {row.points}
+                                      {
+                                        row.points
+                                      }
                                     </td>
 
                                   </tr>
@@ -2210,51 +2759,69 @@ export default function Home() {
                         </div>
 
                         {/* ==================================================
-                           MOBILE STANDINGS
+                            MOBILE TABLE
                         ================================================== */}
 
                         <div
                           className="standingsFrame mobileStandings"
                           style={{
-                            marginTop: "20px",
+                            marginTop:
+                              "20px",
                           }}
                         >
 
                           {sportLeaderboard.rows.map(
-                            (row, index) => (
+                            (
+                              row,
+                              index
+                            ) => (
 
                               <div
                                 key={row.id}
                                 className={`mobileStandingRow ${
-                                  index === 0
+                                  index ===
+                                  0
                                     ? "first"
                                     : ""
                                 }`}
                               >
 
                                 <div className="mobileStandingRank">
-                                  {getMedal(index)}
+                                  {getMedal(
+                                    index
+                                  )}
                                 </div>
 
                                 <div className="mobileStandingClub">
 
                                   <div className="mobileStandingClubName">
-                                    {row.name}
+                                    {
+                                      row.name
+                                    }
                                   </div>
 
                                   <div className="mobileStandingStats">
 
                                     <span>
-                                      P {row.played}
+                                      P{" "}
+                                      {
+                                        row.played
+                                      }
                                     </span>
 
                                     <span>
-                                      W {row.wins}
+                                      W{" "}
+                                      {
+                                        row.wins
+                                      }
                                     </span>
 
                                     {isFootball && (
                                       <span>
-                                        D {row.draws}
+                                        D{" "}
+                                        {
+                                          row.draws
+                                        }
                                       </span>
                                     )}
 
@@ -2262,17 +2829,26 @@ export default function Home() {
                                       !isFootball &&
                                       !usesPD && (
                                         <span>
-                                          D {row.draws}
+                                          D{" "}
+                                          {
+                                            row.draws
+                                          }
                                         </span>
                                       )}
 
                                     <span>
-                                      L {row.losses}
+                                      L{" "}
+                                      {
+                                        row.losses
+                                      }
                                     </span>
 
                                     {isCricket && (
                                       <span>
-                                        NR {row.noResults}
+                                        NR{" "}
+                                        {
+                                          row.noResults
+                                        }
                                       </span>
                                     )}
 
@@ -2293,10 +2869,13 @@ export default function Home() {
                                     <div className="mobileStandingExtra">
                                       GD{" "}
                                       <b>
-                                        {row.pd > 0
+                                        {row.pd >
+                                        0
                                           ? "+"
                                           : ""}
-                                        {row.pd}
+                                        {
+                                          row.pd
+                                        }
                                       </b>
                                     </div>
                                   )}
@@ -2314,7 +2893,8 @@ export default function Home() {
                                       )}
                                       {" · "}
                                       PD{" "}
-                                      {row.pd > 0
+                                      {row.pd >
+                                      0
                                         ? "+"
                                         : ""}
                                       {formatNumber(
@@ -2328,7 +2908,9 @@ export default function Home() {
                                 <div className="mobileStandingPoints">
 
                                   <strong>
-                                    {row.points}
+                                    {
+                                      row.points
+                                    }
                                   </strong>
 
                                   <small>
@@ -2344,45 +2926,62 @@ export default function Home() {
 
                         </div>
 
-                        {/* LEGEND */}
+                        {/* ==================================================
+                            LEGEND
+                        ================================================== */}
 
                         <div className="tableLegend">
 
-                          <b>P</b> Played ·{" "}
-                          <b>W</b> Won ·{" "}
+                          <b>P</b>{" "}
+                          Played ·{" "}
+
+                          <b>W</b>{" "}
+                          Won ·{" "}
 
                           {(isFootball ||
                             (!isCricket &&
                               !usesPD)) && (
                             <>
-                              <b>D</b> Draw ·{" "}
+                              <b>D</b>{" "}
+                              Draw ·{" "}
                             </>
                           )}
 
-                          <b>L</b> Lost ·{" "}
+                          <b>L</b>{" "}
+                          Lost ·{" "}
 
                           {isCricket && (
                             <>
-                              <b>NR</b> No Result ·{" "}
-                              <b>NRR</b> Net Run Rate ·{" "}
+                              <b>NR</b>{" "}
+                              No Result ·{" "}
+
+                              <b>NRR</b>{" "}
+                              Net Run Rate ·{" "}
                             </>
                           )}
 
                           {isFootball && (
                             <>
-                              <b>GD</b> Goal Difference ·{" "}
+                              <b>GD</b>{" "}
+                              Goal Difference ·{" "}
                             </>
                           )}
 
                           {usesPD && (
                             <>
-                              <b>PF</b> Points For ·{" "}
-                              <b>PA</b> Points Against ·{" "}
-                              <b>PD</b> Point Difference ·{" "}
+                              <b>PF</b>{" "}
+                              Points For ·{" "}
+
+                              <b>PA</b>{" "}
+                              Points Against ·{" "}
+
+                              <b>PD</b>{" "}
+                              Point Difference ·{" "}
                             </>
                           )}
 
-                          <b>PTS</b> Competition Points
+                          <b>PTS</b>{" "}
+                          Competition Points
 
                         </div>
 
@@ -2403,7 +3002,7 @@ export default function Home() {
         </div>
 
         {/* ====================================================
-           POINTS SYSTEM
+            POINTS SYSTEM
         ==================================================== */}
 
         <div className="card section">
@@ -2415,7 +3014,6 @@ export default function Home() {
           <div className="rules">
 
             <div>
-
               <b>
                 Team
               </b>
@@ -2423,11 +3021,9 @@ export default function Home() {
               <span>
                 🥇 25 · 🥈 15 · 🥉 7
               </span>
-
             </div>
 
             <div>
-
               <b>
                 Doubles / Mixed
               </b>
@@ -2435,11 +3031,9 @@ export default function Home() {
               <span>
                 🥇 15 · 🥈 10 · 🥉 7
               </span>
-
             </div>
 
             <div>
-
               <b>
                 Individual
               </b>
@@ -2447,7 +3041,6 @@ export default function Home() {
               <span>
                 🥇 10 · 🥈 7 · 🥉 5
               </span>
-
             </div>
 
           </div>
@@ -2455,7 +3048,7 @@ export default function Home() {
         </div>
 
         {/* ====================================================
-           EVENTS
+            EVENTS
         ==================================================== */}
 
         <div className="card section">
@@ -2464,7 +3057,9 @@ export default function Home() {
             Events
           </h2>
 
-          {Object.entries(eventGroups).map(
+          {Object.entries(
+            eventGroups
+          ).map(
             ([group, sports]) => (
 
               <div
@@ -2478,13 +3073,17 @@ export default function Home() {
 
                 <div className="pills">
 
-                  {sports.map((sport) => (
+                  {sports.map(
+                    (sport) => (
 
-                    <span key={sport}>
-                      {sport}
-                    </span>
+                      <span
+                        key={sport}
+                      >
+                        {sport}
+                      </span>
 
-                  ))}
+                    )
+                  )}
 
                 </div>
 
@@ -2498,7 +3097,8 @@ export default function Home() {
             <div
               className="eventGroup"
               style={{
-                marginTop: "24px",
+                marginTop:
+                  "24px",
               }}
             >
 
@@ -2508,17 +3108,19 @@ export default function Home() {
 
               <div className="pills">
 
-                {events.map((event) => (
+                {events.map(
+                  (event) => (
 
-                  <span key={event.id}>
+                    <span
+                      key={event.id}
+                    >
+                      {event.name}
+                      {" · "}
+                      {event.gender}
+                    </span>
 
-                    {event.name}
-                    {" · "}
-                    {event.gender}
-
-                  </span>
-
-                ))}
+                  )
+                )}
 
               </div>
 
@@ -2529,7 +3131,6 @@ export default function Home() {
         </div>
 
       </section>
-
     </main>
   );
 }
