@@ -3,11 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
 
-/* =========================================================
-   FIXED CLUB NAMES USED ONLY FOR OVERALL POINT DISPLAY
-========================================================= */
-
-const defaultClubNames = [
+const defaultClubs = [
   "Falcons",
   "Eagles",
   "Thunderbirds",
@@ -15,27 +11,68 @@ const defaultClubNames = [
   "Phoenix",
 ];
 
-/* =========================================================
+const eventGroups = {
+  "Men's Team Sports": [
+    "Cricket",
+    "Football",
+    "Volleyball",
+    "Basketball",
+    "Kho Kho",
+  ],
+  "Women's Team Sports": [
+    "Cricket",
+    "Throwball",
+    "Basketball",
+    "Kho Kho",
+  ],
+  "Men's Doubles": [
+    "Tennis",
+    "Table Tennis",
+    "Badminton",
+    "Carrom",
+  ],
+  "Women's Doubles": [
+    "Tennis",
+    "Table Tennis",
+    "Badminton",
+    "Carrom",
+  ],
+  "Mixed Doubles": ["Tennis"],
+  "Men's Individual": [
+    "Marathon",
+    "100m",
+    "200m",
+    "400m",
+    "Long Jump",
+    "Triple Jump",
+    "Table Tennis",
+    "Cycling",
+  ],
+  "Women's Individual": [
+    "Marathon",
+    "100m",
+    "200m",
+    "400m",
+    "Long Jump",
+    "Triple Jump",
+    "Table Tennis",
+    "Cycling",
+  ],
+};
+
+/* ============================================================
    HELPERS
-========================================================= */
+============================================================ */
 
 function isFinal(status) {
-  return (
-    String(status || "").toLowerCase() ===
-    "final"
-  );
+  return String(status || "").toLowerCase() === "final";
 }
 
 function isTeamEvent(event) {
   if (!event) return false;
 
-  const category = String(
-    event.category || ""
-  ).toLowerCase();
-
-  const pointsType = String(
-    event.points_type || ""
-  ).toLowerCase();
+  const category = String(event.category || "").toLowerCase();
+  const pointsType = String(event.points_type || "").toLowerCase();
 
   return (
     category.includes("team") ||
@@ -43,24 +80,7 @@ function isTeamEvent(event) {
   );
 }
 
-function isCricket(event) {
-  if (!event) return false;
-
-  return (
-    String(event.name || "")
-      .trim()
-      .toLowerCase() === "cricket" &&
-    isTeamEvent(event)
-  );
-}
-
-/* =========================================================
-   CRICKET OVERS
-
-   19.3 = 19 overs + 3 balls
-========================================================= */
-
-function oversToBalls(value) {
+function numericScore(value) {
   if (
     value === null ||
     value === undefined ||
@@ -71,586 +91,294 @@ function oversToBalls(value) {
 
   const text = String(value).trim();
 
-  if (!/^\d+(\.\d+)?$/.test(text)) {
+  if (!/^-?\d+(\.\d+)?$/.test(text)) {
     return null;
+  }
+
+  const number = Number(text);
+
+  return Number.isFinite(number) ? number : null;
+}
+
+/*
+  Cricket overs conversion.
+
+  Example:
+  20       = 20 overs
+  19.3     = 19 overs 3 balls
+  19.6     = INVALID cricket notation
+
+  Returns overs as decimal-equivalent overs.
+  19.3 means 19 overs + 3/6 overs.
+*/
+function cricketOversToNumber(value) {
+  if (
+    value === null ||
+    value === undefined ||
+    value === ""
+  ) {
+    return null;
+  }
+
+  const text = String(value).trim();
+
+  if (!text) return null;
+
+  if (!text.includes(".")) {
+    const overs = Number(text);
+
+    return Number.isFinite(overs) ? overs : null;
   }
 
   const parts = text.split(".");
 
   const overs = Number(parts[0]);
-
-  const balls =
-    parts.length > 1
-      ? Number(parts[1])
-      : 0;
+  const balls = Number(parts[1]);
 
   if (
-    !Number.isInteger(overs) ||
-    !Number.isInteger(balls)
+    !Number.isFinite(overs) ||
+    !Number.isFinite(balls) ||
+    balls < 0 ||
+    balls > 5
   ) {
     return null;
   }
 
-  if (balls < 0 || balls > 5) {
-    return null;
-  }
-
-  return overs * 6 + balls;
+  return overs + balls / 6;
 }
 
-function ballsToOvers(balls) {
-  if (
-    balls === null ||
-    balls === undefined ||
-    balls <= 0
-  ) {
-    return 0;
-  }
+/*
+  Gets cricket innings information for each club.
 
-  const completeOvers =
-    Math.floor(balls / 6);
+  We use batting_first_club_id so the website knows
+  which innings belongs to which club.
+*/
+function getCricketStats(match) {
+  const battingFirst =
+    match.batting_first_club_id !== null &&
+    match.batting_first_club_id !== undefined &&
+    match.batting_first_club_id !== ""
+      ? Number(match.batting_first_club_id)
+      : null;
 
-  const remainingBalls =
-    balls % 6;
+  const clubA = Number(match.club_a_id);
+  const clubB = Number(match.club_b_id);
 
-  return (
-    completeOvers +
-    remainingBalls / 6
+  let firstRuns = numericScore(
+    match.innings1_runs
   );
-}
 
-/* =========================================================
-   CRICKET NRR DENOMINATOR
+  let secondRuns = numericScore(
+    match.innings2_runs
+  );
 
-   If all out, use allotted overs.
-   Otherwise use actual overs faced.
-========================================================= */
+  let firstOvers = cricketOversToNumber(
+    match.innings1_overs
+  );
 
-function cricketOversForNRR(
-  overs,
-  wickets,
-  allottedOvers
-) {
-  const actualBalls =
-    oversToBalls(overs);
-
-  const allottedBalls =
-    oversToBalls(allottedOvers);
-
-  if (actualBalls === null) {
-    return null;
-  }
+  let secondOvers = cricketOversToNumber(
+    match.innings2_overs
+  );
 
   /*
-    10 wickets = all out.
-    For an all-out innings, ICC-style NRR
-    calculations use the full allotted overs.
+    Fallback to innings_a / innings_b fields
+    if the newer innings1/innings2 fields
+    are not populated.
   */
 
-  if (
-    Number(wickets) >= 10 &&
-    allottedBalls !== null
-  ) {
-    return ballsToOvers(
-      allottedBalls
+  if (firstRuns === null) {
+    firstRuns = numericScore(match.innings_a_runs);
+  }
+
+  if (secondRuns === null) {
+    secondRuns = numericScore(match.innings_b_runs);
+  }
+
+  if (firstOvers === null) {
+    firstOvers = cricketOversToNumber(
+      match.innings_a_overs
     );
   }
 
-  return ballsToOvers(
-    actualBalls
-  );
+  if (secondOvers === null) {
+    secondOvers = cricketOversToNumber(
+      match.innings_b_overs
+    );
+  }
+
+  /*
+    Another fallback using runs_a/runs_b.
+  */
+
+  if (firstRuns === null && battingFirst === clubA) {
+    firstRuns = numericScore(match.runs_a);
+  }
+
+  if (firstRuns === null && battingFirst === clubB) {
+    firstRuns = numericScore(match.runs_b);
+  }
+
+  if (secondRuns === null && battingFirst === clubA) {
+    secondRuns = numericScore(match.runs_b);
+  }
+
+  if (secondRuns === null && battingFirst === clubB) {
+    secondRuns = numericScore(match.runs_a);
+  }
+
+  return {
+    battingFirst,
+    firstRuns,
+    secondRuns,
+    firstOvers,
+    secondOvers,
+  };
 }
 
-/* =========================================================
-   CRICKET MATCH RESULT
-========================================================= */
+/*
+  Returns the result of a club in a match.
+*/
+function getResultForClub(match, clubId) {
+  const club = Number(clubId);
 
-function cricketResult(
-  match,
-  clubId
-) {
-  const a =
-    Number(match.club_a_id);
+  const clubA = Number(match.club_a_id);
+  const clubB = Number(match.club_b_id);
 
-  const b =
-    Number(match.club_b_id);
+  const winner =
+    match.winner_club_id === null ||
+    match.winner_club_id === undefined ||
+    match.winner_club_id === ""
+      ? null
+      : Number(match.winner_club_id);
 
-  const club =
-    Number(clubId);
+  if (winner !== null) {
+    if (winner === club) {
+      return "win";
+    }
 
-  const runsA =
-    Number(match.innings_a_runs);
+    return "loss";
+  }
 
-  const runsB =
-    Number(match.innings_b_runs);
+  const scoreA = numericScore(match.score_a);
+  const scoreB = numericScore(match.score_b);
+
+  if (scoreA !== null && scoreB !== null) {
+    if (scoreA === scoreB) {
+      return "draw";
+    }
+
+    if (club === clubA && scoreA > scoreB) {
+      return "win";
+    }
+
+    if (club === clubB && scoreB > scoreA) {
+      return "win";
+    }
+
+    return "loss";
+  }
+
+  /*
+    Cricket can have scores such as 185/6,
+    so use innings runs as fallback.
+  */
+
+  const cricket = getCricketStats(match);
 
   if (
-    !Number.isFinite(runsA) ||
-    !Number.isFinite(runsB)
+    cricket.firstRuns !== null &&
+    cricket.secondRuns !== null &&
+    cricket.battingFirst !== null
   ) {
-    return "no_result";
-  }
+    const firstClub = cricket.battingFirst;
 
-  if (runsA === runsB) {
-    return "tie";
-  }
+    const secondClub =
+      firstClub === clubA ? clubB : clubA;
 
-  if (club === a) {
-    return runsA > runsB
-      ? "win"
-      : "loss";
-  }
+    if (cricket.firstRuns === cricket.secondRuns) {
+      return "draw";
+    }
 
-  if (club === b) {
-    return runsB > runsA
-      ? "win"
-      : "loss";
+    if (
+      club === firstClub &&
+      cricket.firstRuns > cricket.secondRuns
+    ) {
+      return "win";
+    }
+
+    if (
+      club === secondClub &&
+      cricket.secondRuns > cricket.firstRuns
+    ) {
+      return "win";
+    }
+
+    return "loss";
   }
 
   return "no_result";
 }
 
-/* =========================================================
-   CRICKET POINTS
-========================================================= */
+/* ============================================================
+   SPORT POINTS
+============================================================ */
 
-function cricketPoints(result) {
-  if (result === "win") return 2;
-
-  if (result === "tie") return 1;
-
-  if (result === "no_result") return 1;
-
-  return 0;
-}
-
-/* =========================================================
-   OTHER SPORTS POINTS
-========================================================= */
-
-function getSportPoints(
-  sport,
-  result
-) {
-  const name = String(
-    sport || ""
-  ).toLowerCase();
+function getSportPoints(sport, result) {
+  const name = String(sport || "").toLowerCase();
 
   if (name === "football") {
     if (result === "win") return 3;
-
     if (result === "draw") return 1;
+    return 0;
+  }
 
+  if (name === "cricket") {
+    if (result === "win") return 2;
+    if (result === "no_result") return 1;
     return 0;
   }
 
   if (name === "volleyball") {
     if (result === "win") return 3;
-
     return 0;
   }
 
   if (name === "basketball") {
     if (result === "win") return 2;
-
     if (result === "loss") return 1;
-
     return 0;
   }
 
   if (name === "throwball") {
     if (result === "win") return 2;
-
     return 0;
   }
 
   if (name === "kho kho") {
     if (result === "win") return 2;
-
     if (result === "draw") return 1;
-
     return 0;
   }
 
   if (result === "win") return 3;
-
   if (result === "draw") return 1;
 
   return 0;
 }
 
-/* =========================================================
-   NORMAL SPORTS RESULT
-========================================================= */
-
-function normalResult(
-  match,
-  clubId
-) {
-  const a =
-    Number(match.club_a_id);
-
-  const b =
-    Number(match.club_b_id);
-
-  const club =
-    Number(clubId);
-
-  const scoreA =
-    Number(match.score_a);
-
-  const scoreB =
-    Number(match.score_b);
-
-  if (
-    !Number.isFinite(scoreA) ||
-    !Number.isFinite(scoreB)
-  ) {
-    return "no_result";
-  }
-
-  if (scoreA === scoreB) {
-    return "draw";
-  }
-
-  if (club === a) {
-    return scoreA > scoreB
-      ? "win"
-      : "loss";
-  }
-
-  if (club === b) {
-    return scoreB > scoreA
-      ? "win"
-      : "loss";
-  }
-
-  return "no_result";
-}
-
-/* =========================================================
-   CRICKET LEADERBOARD
-========================================================= */
-
-function buildCricketLeaderboard(
-  eventId,
-  matches,
-  clubs
-) {
-  const table = {};
-
-  clubs.forEach((club) => {
-    table[club.id] = {
-      id: club.id,
-      name: club.name,
-
-      played: 0,
-      wins: 0,
-      losses: 0,
-      noResults: 0,
-      ties: 0,
-
-      runsFor: 0,
-      runsAgainst: 0,
-
-      totalBallsFor: 0,
-      totalBallsAgainst: 0,
-
-      nrr: 0,
-      points: 0,
-    };
-  });
-
-  const completed =
-    matches.filter(
-      (match) =>
-        isFinal(match.status) &&
-        Number(match.event_id) ===
-          Number(eventId)
-    );
-
-  completed.forEach((match) => {
-    const clubA =
-      table[match.club_a_id];
-
-    const clubB =
-      table[match.club_b_id];
-
-    if (!clubA || !clubB) {
-      return;
-    }
-
-    const runsA =
-      Number(match.innings_a_runs);
-
-    const runsB =
-      Number(match.innings_b_runs);
-
-    if (
-      !Number.isFinite(runsA) ||
-      !Number.isFinite(runsB)
-    ) {
-      return;
-    }
-
-    clubA.played += 1;
-    clubB.played += 1;
-
-    const resultA =
-      cricketResult(
-        match,
-        match.club_a_id
-      );
-
-    const resultB =
-      cricketResult(
-        match,
-        match.club_b_id
-      );
-
-    /* Results */
-
-    if (resultA === "win")
-      clubA.wins += 1;
-
-    if (resultB === "win")
-      clubB.wins += 1;
-
-    if (resultA === "loss")
-      clubA.losses += 1;
-
-    if (resultB === "loss")
-      clubB.losses += 1;
-
-    if (resultA === "tie")
-      clubA.ties += 1;
-
-    if (resultB === "tie")
-      clubB.ties += 1;
-
-    if (resultA === "no_result")
-      clubA.noResults += 1;
-
-    if (resultB === "no_result")
-      clubB.noResults += 1;
-
-    /* Points */
-
-    clubA.points +=
-      cricketPoints(resultA);
-
-    clubB.points +=
-      cricketPoints(resultB);
-
-    /* Runs */
-
-    clubA.runsFor += runsA;
-    clubA.runsAgainst += runsB;
-
-    clubB.runsFor += runsB;
-    clubB.runsAgainst += runsA;
-
-    /* Overs */
-
-    const allotted =
-      match.allotted_overs;
-
-    const oversA =
-      cricketOversForNRR(
-        match.innings_a_overs,
-        match.innings1_wickets,
-        allotted
-      );
-
-    const oversB =
-      cricketOversForNRR(
-        match.innings_b_overs,
-        match.innings2_wickets,
-        allotted
-      );
-
-    if (
-      oversA !== null &&
-      oversA > 0
-    ) {
-      clubA.totalBallsFor +=
-        oversToBalls(
-          match.innings_a_overs
-        ) || 0;
-
-      /*
-        If all out, use allotted balls.
-      */
-      if (
-        Number(match.innings1_wickets) >=
-          10 &&
-        oversToBalls(allotted) !== null
-      ) {
-        clubA.totalBallsFor =
-          clubA.totalBallsFor -
-          (oversToBalls(
-            match.innings_a_overs
-          ) || 0) +
-          oversToBalls(allotted);
-      }
-    }
-
-    if (
-      oversB !== null &&
-      oversB > 0
-    ) {
-      clubB.totalBallsFor +=
-        oversToBalls(
-          match.innings_b_overs
-        ) || 0;
-
-      if (
-        Number(match.innings2_wickets) >=
-          10 &&
-        oversToBalls(allotted) !== null
-      ) {
-        clubB.totalBallsFor =
-          clubB.totalBallsFor -
-          (oversToBalls(
-            match.innings_b_overs
-          ) || 0) +
-          oversToBalls(allotted);
-      }
-    }
-
-    /*
-      Against = opponent's batting overs.
-    */
-
-    clubA.totalBallsAgainst +=
-      oversToBalls(
-        match.innings_b_overs
-      ) || 0;
-
-    clubB.totalBallsAgainst +=
-      oversToBalls(
-        match.innings_a_overs
-      ) || 0;
-
-    if (
-      Number(match.innings2_wickets) >=
-        10 &&
-      oversToBalls(allotted) !== null
-    ) {
-      clubA.totalBallsAgainst =
-        clubA.totalBallsAgainst -
-        (oversToBalls(
-          match.innings_b_overs
-        ) || 0) +
-        oversToBalls(allotted);
-    }
-
-    if (
-      Number(match.innings1_wickets) >=
-        10 &&
-      oversToBalls(allotted) !== null
-    ) {
-      clubB.totalBallsAgainst =
-        clubB.totalBallsAgainst -
-        (oversToBalls(
-          match.innings_a_overs
-        ) || 0) +
-        oversToBalls(allotted);
-    }
-  });
-
-  Object.values(table).forEach(
-    (club) => {
-      const ballsFor =
-        club.totalBallsFor;
-
-      const ballsAgainst =
-        club.totalBallsAgainst;
-
-      const oversFor =
-        ballsToOvers(
-          ballsFor
-        );
-
-      const oversAgainst =
-        ballsToOvers(
-          ballsAgainst
-        );
-
-      const runRateFor =
-        oversFor > 0
-          ? club.runsFor /
-            oversFor
-          : 0;
-
-      const runRateAgainst =
-        oversAgainst > 0
-          ? club.runsAgainst /
-            oversAgainst
-          : 0;
-
-      club.nrr =
-        runRateFor -
-        runRateAgainst;
-    }
-  );
-
-  const rows =
-    Object.values(table).sort(
-      (a, b) => {
-        if (
-          b.points !== a.points
-        ) {
-          return (
-            b.points -
-            a.points
-          );
-        }
-
-        if (
-          b.nrr !== a.nrr
-        ) {
-          return (
-            b.nrr -
-            a.nrr
-          );
-        }
-
-        if (
-          b.wins !== a.wins
-        ) {
-          return (
-            b.wins -
-            a.wins
-          );
-        }
-
-        return a.name.localeCompare(
-          b.name
-        );
-      }
-    );
-
-  return {
-    rows,
-    completedCount:
-      completed.length,
-  };
-}
-
-/* =========================================================
-   OTHER TEAM SPORT LEADERBOARD
-========================================================= */
-
-function buildNormalLeaderboard(
+/* ============================================================
+   BUILD LEADERBOARD
+============================================================ */
+
+function buildSportLeaderboard(
   sport,
   eventId,
   matches,
-  clubs
+  clubRows
 ) {
   const table = {};
 
-  clubs.forEach((club) => {
+  clubRows.forEach((club) => {
     table[club.id] = {
       id: club.id,
       name: club.name,
@@ -659,75 +387,75 @@ function buildNormalLeaderboard(
       wins: 0,
       draws: 0,
       losses: 0,
+      noResults: 0,
 
       pf: 0,
       pa: 0,
       pd: 0,
 
+      cricketRunsFor: 0,
+      cricketOversFor: 0,
+      cricketRunsAgainst: 0,
+      cricketOversAgainst: 0,
+
+      nrr: 0,
+
       points: 0,
     };
   });
 
-  const completed =
-    matches.filter(
-      (match) =>
-        isFinal(match.status) &&
-        Number(match.event_id) ===
-          Number(eventId)
-    );
+  const completed = matches.filter(
+    (match) =>
+      isFinal(match.status) &&
+      Number(match.event_id) === Number(eventId)
+  );
 
   completed.forEach((match) => {
-    const clubA =
-      table[match.club_a_id];
+    const clubA = table[match.club_a_id];
+    const clubB = table[match.club_b_id];
 
-    const clubB =
-      table[match.club_b_id];
-
-    if (!clubA || !clubB)
-      return;
+    if (!clubA || !clubB) return;
 
     clubA.played += 1;
     clubB.played += 1;
 
-    const resultA =
-      normalResult(
-        match,
-        match.club_a_id
-      );
+    const resultA = getResultForClub(
+      match,
+      match.club_a_id
+    );
 
-    const resultB =
-      normalResult(
-        match,
-        match.club_b_id
-      );
+    const resultB = getResultForClub(
+      match,
+      match.club_b_id
+    );
 
-    if (resultA === "win")
-      clubA.wins += 1;
+    if (resultA === "win") clubA.wins += 1;
+    if (resultB === "win") clubB.wins += 1;
 
-    if (resultB === "win")
-      clubB.wins += 1;
+    if (resultA === "draw") clubA.draws += 1;
+    if (resultB === "draw") clubB.draws += 1;
 
-    if (resultA === "draw")
-      clubA.draws += 1;
+    if (resultA === "loss") clubA.losses += 1;
+    if (resultB === "loss") clubB.losses += 1;
 
-    if (resultB === "draw")
-      clubB.draws += 1;
+    if (resultA === "no_result") {
+      clubA.noResults += 1;
+    }
 
-    if (resultA === "loss")
-      clubA.losses += 1;
+    if (resultB === "no_result") {
+      clubB.noResults += 1;
+    }
 
-    if (resultB === "loss")
-      clubB.losses += 1;
+    /*
+      Normal numeric score statistics.
+    */
 
-    const scoreA =
-      Number(match.score_a);
-
-    const scoreB =
-      Number(match.score_b);
+    const scoreA = numericScore(match.score_a);
+    const scoreB = numericScore(match.score_b);
 
     if (
-      Number.isFinite(scoreA) &&
-      Number.isFinite(scoreB)
+      scoreA !== null &&
+      scoreB !== null
     ) {
       clubA.pf += scoreA;
       clubA.pa += scoreB;
@@ -736,120 +464,225 @@ function buildNormalLeaderboard(
       clubB.pa += scoreA;
     }
 
-    clubA.points +=
-      getSportPoints(
-        sport,
-        resultA
-      );
+    /*
+      Cricket NRR statistics.
+    */
 
-    clubB.points +=
-      getSportPoints(
-        sport,
-        resultB
-      );
+    if (
+      String(sport || "").toLowerCase() ===
+      "cricket"
+    ) {
+      const cricket = getCricketStats(match);
+
+      if (
+        cricket.battingFirst !== null &&
+        cricket.firstRuns !== null &&
+        cricket.secondRuns !== null &&
+        cricket.firstOvers !== null &&
+        cricket.secondOvers !== null
+      ) {
+        const firstClub =
+          cricket.battingFirst;
+
+        const secondClub =
+          firstClub === Number(match.club_a_id)
+            ? Number(match.club_b_id)
+            : Number(match.club_a_id);
+
+        const firstRow = table[firstClub];
+        const secondRow = table[secondClub];
+
+        if (firstRow && secondRow) {
+          firstRow.cricketRunsFor +=
+            cricket.firstRuns;
+
+          firstRow.cricketOversFor +=
+            cricket.firstOvers;
+
+          firstRow.cricketRunsAgainst +=
+            cricket.secondRuns;
+
+          firstRow.cricketOversAgainst +=
+            cricket.secondOvers;
+
+          secondRow.cricketRunsFor +=
+            cricket.secondRuns;
+
+          secondRow.cricketOversFor +=
+            cricket.secondOvers;
+
+          secondRow.cricketRunsAgainst +=
+            cricket.firstRuns;
+
+          secondRow.cricketOversAgainst +=
+            cricket.firstOvers;
+        }
+      }
+    }
+
+    clubA.points += getSportPoints(
+      sport,
+      resultA
+    );
+
+    clubB.points += getSportPoints(
+      sport,
+      resultB
+    );
   });
 
-  Object.values(table).forEach(
-    (club) => {
-      club.pd =
-        club.pf -
-        club.pa;
+  /*
+    Calculate NRR.
+  */
+
+  Object.values(table).forEach((club) => {
+    club.pd = club.pf - club.pa;
+
+    if (
+      String(sport || "").toLowerCase() ===
+      "cricket"
+    ) {
+      if (
+        club.cricketOversFor > 0 &&
+        club.cricketOversAgainst > 0
+      ) {
+        const runRateFor =
+          club.cricketRunsFor /
+          club.cricketOversFor;
+
+        const runRateAgainst =
+          club.cricketRunsAgainst /
+          club.cricketOversAgainst;
+
+        club.nrr =
+          runRateFor - runRateAgainst;
+      } else {
+        club.nrr = 0;
+      }
+    }
+  });
+
+  /*
+    Sorting.
+
+    Cricket:
+    Points → Wins → NRR → Runs For
+
+    Football:
+    Points → Wins → Goal Difference
+
+    Other sports:
+    Points → Wins → Point Difference
+  */
+
+  const sportName =
+    String(sport || "").toLowerCase();
+
+  const rows = Object.values(table).sort(
+    (a, b) => {
+      if (b.points !== a.points) {
+        return b.points - a.points;
+      }
+
+      if (b.wins !== a.wins) {
+        return b.wins - a.wins;
+      }
+
+      if (sportName === "cricket") {
+        if (b.nrr !== a.nrr) {
+          return b.nrr - a.nrr;
+        }
+
+        return (
+          b.cricketRunsFor -
+          a.cricketRunsFor
+        );
+      }
+
+      if (b.pd !== a.pd) {
+        return b.pd - a.pd;
+      }
+
+      if (b.pf !== a.pf) {
+        return b.pf - a.pf;
+      }
+
+      return a.name.localeCompare(
+        b.name
+      );
     }
   );
 
-  const rows =
-    Object.values(table).sort(
-      (a, b) => {
-        if (
-          b.points !== a.points
-        ) {
-          return (
-            b.points -
-            a.points
-          );
-        }
-
-        if (
-          b.pd !== a.pd
-        ) {
-          return (
-            b.pd -
-            a.pd
-          );
-        }
-
-        if (
-          b.wins !== a.wins
-        ) {
-          return (
-            b.wins -
-            a.wins
-          );
-        }
-
-        return a.name.localeCompare(
-          b.name
-        );
-      }
-    );
-
   return {
     rows,
-    completedCount:
-      completed.length,
+    completedCount: completed.length,
   };
 }
 
-/* =========================================================
-   FORMAT
-========================================================= */
-
 function formatNumber(value) {
-  if (!Number.isFinite(value))
+  if (!Number.isFinite(Number(value))) {
     return "0";
+  }
 
-  return Number.isInteger(value)
-    ? value
-    : value.toFixed(2);
+  if (
+    Number.isInteger(Number(value))
+  ) {
+    return Number(value);
+  }
+
+  return Number(value).toFixed(1);
 }
 
-/* =========================================================
-   PAGE
-========================================================= */
+function formatNRR(value) {
+  const number = Number(value || 0);
+
+  if (!Number.isFinite(number)) {
+    return "0.000";
+  }
+
+  if (number > 0) {
+    return `+${number.toFixed(3)}`;
+  }
+
+  return number.toFixed(3);
+}
+
+/* ============================================================
+   MAIN PAGE
+============================================================ */
 
 export default function Home() {
-  const [matches, setMatches] =
-    useState([]);
-
-  const [points, setPoints] =
-    useState({});
-
-  const [events, setEvents] =
-    useState([]);
-
-  const [clubRows, setClubRows] =
-    useState([]);
-
-  const [loading, setLoading] =
-    useState(true);
+  const [matches, setMatches] = useState([]);
+  const [points, setPoints] = useState({});
+  const [events, setEvents] = useState([]);
+  const [clubRows, setClubRows] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   const [
     selectedTeamSport,
     setSelectedTeamSport,
   ] = useState("");
 
-  /* =======================================================
-     LOAD
-  ======================================================= */
-
   async function load() {
     setLoading(true);
 
     const [
-      { data: matchData },
-      { data: resultData },
-      { data: eventData },
-      { data: clubData },
+      {
+        data: matchData,
+        error: matchError,
+      },
+      {
+        data: resultData,
+        error: resultError,
+      },
+      {
+        data: eventData,
+        error: eventError,
+      },
+      {
+        data: clubData,
+        error: clubError,
+      },
     ] = await Promise.all([
       supabase
         .from("matches")
@@ -874,13 +707,21 @@ export default function Home() {
           innings2_wickets,
           innings2_overs,
 
+          runs_a,
+          wickets_a,
+          overs_a,
+
+          runs_b,
+          wickets_b,
+          overs_b,
+
+          allotted_overs,
+
           innings_a_runs,
           innings_a_overs,
 
           innings_b_runs,
           innings_b_overs,
-
-          allotted_overs,
 
           events(
             id,
@@ -916,36 +757,43 @@ export default function Home() {
         .order("id"),
     ]);
 
-    setMatches(
-      matchData || []
-    );
+    if (matchError) {
+      console.error(
+        "Matches error:",
+        matchError
+      );
+    }
 
-    setEvents(
-      eventData || []
-    );
+    if (resultError) {
+      console.error(
+        "Results error:",
+        resultError
+      );
+    }
 
-    setClubRows(
-      clubData || []
-    );
+    if (eventError) {
+      console.error(
+        "Events error:",
+        eventError
+      );
+    }
 
-    /* =====================================================
-       OVERALL POINTS
-    ===================================================== */
+    if (clubError) {
+      console.error(
+        "Clubs error:",
+        clubError
+      );
+    }
+
+    setMatches(matchData || []);
+    setEvents(eventData || []);
+    setClubRows(clubData || []);
+
+    /*
+      Overall championship points.
+    */
 
     const totals = {};
-
-    defaultClubNames.forEach(
-      (club) => {
-        totals[club] = 0;
-      }
-    );
-
-    (clubData || []).forEach(
-      (club) => {
-        totals[club.name] =
-          totals[club.name] || 0;
-      }
-    );
 
     (resultData || []).forEach(
       (result) => {
@@ -962,11 +810,25 @@ export default function Home() {
       }
     );
 
+    defaultClubs.forEach(
+      (club) => {
+        totals[club] =
+          totals[club] || 0;
+      }
+    );
+
+    (clubData || []).forEach(
+      (club) => {
+        totals[club.name] =
+          totals[club.name] || 0;
+      }
+    );
+
     setPoints(totals);
 
-    /* =====================================================
-       TEAM EVENTS
-    ===================================================== */
+    /*
+      Select first team sport.
+    */
 
     const teamEvents =
       (eventData || []).filter(
@@ -974,26 +836,28 @@ export default function Home() {
           isTeamEvent(event)
       );
 
-    setSelectedTeamSport(
-      (current) => {
-        if (
-          current &&
-          teamEvents.some(
-            (event) =>
-              String(event.id) ===
-              String(current)
-          )
-        ) {
-          return current;
-        }
-
-        return teamEvents.length
-          ? String(
-              teamEvents[0].id
+    if (teamEvents.length > 0) {
+      setSelectedTeamSport(
+        (current) => {
+          if (
+            current &&
+            teamEvents.some(
+              (event) =>
+                String(event.id) ===
+                String(current)
             )
-          : "";
-      }
-    );
+          ) {
+            return current;
+          }
+
+          return String(
+            teamEvents[0].id
+          );
+        }
+      );
+    } else {
+      setSelectedTeamSport("");
+    }
 
     setLoading(false);
   }
@@ -1042,9 +906,9 @@ export default function Home() {
     };
   }, []);
 
-  /* =======================================================
+  /* ==========================================================
      MATCH GROUPS
-  ======================================================= */
+  ========================================================== */
 
   const upcomingMatches =
     matches.filter(
@@ -1065,30 +929,29 @@ export default function Home() {
     );
 
   const completedMatches =
-    matches.filter(
-      (match) =>
-        isFinal(match.status)
+    matches.filter((match) =>
+      isFinal(match.status)
     );
 
-  /* =======================================================
-     OVERALL
-  ======================================================= */
+  /* ==========================================================
+     OVERALL LEADERBOARD
+  ========================================================== */
 
-  const leaderboard =
-    Object.entries(points)
-      .sort(
-        (a, b) =>
-          b[1] - a[1]
-      );
+  const leaderboard = Object.keys(
+    points
+  ).sort(
+    (a, b) =>
+      (points[b] || 0) -
+      (points[a] || 0)
+  );
 
-  /* =======================================================
+  /* ==========================================================
      TEAM SPORTS
-  ======================================================= */
+  ========================================================== */
 
   const teamSports =
-    events.filter(
-      (event) =>
-        isTeamEvent(event)
+    events.filter((event) =>
+      isTeamEvent(event)
     );
 
   const selectedEvent =
@@ -1106,39 +969,41 @@ export default function Home() {
   };
 
   if (selectedEvent) {
-    if (
-      isCricket(selectedEvent)
-    ) {
-      sportLeaderboard =
-        buildCricketLeaderboard(
-          selectedEvent.id,
-          matches,
-          clubRows
-        );
-    } else {
-      sportLeaderboard =
-        buildNormalLeaderboard(
-          selectedEvent.name,
-          selectedEvent.id,
-          matches,
-          clubRows
-        );
-    }
+    sportLeaderboard =
+      buildSportLeaderboard(
+        selectedEvent.name,
+        selectedEvent.id,
+        matches,
+        clubRows
+      );
   }
 
-  const selectedIsCricket =
-    isCricket(selectedEvent);
+  const selectedSportName =
+    String(
+      selectedEvent?.name || ""
+    ).toLowerCase();
 
-  /* =======================================================
+  const isCricket =
+    selectedSportName ===
+    "cricket";
+
+  const isFootball =
+    selectedSportName ===
+    "football";
+
+  const usesPD =
+    selectedSportName ===
+      "basketball" ||
+    selectedSportName ===
+      "volleyball";
+
+  /* ==========================================================
      MATCH CARD
-  ======================================================= */
+  ========================================================== */
 
-  function MatchCard({
-    match,
-  }) {
+  function MatchCard({ match }) {
     return (
       <div className="match">
-
         <div>
           <b>
             {match.club_a?.name ||
@@ -1146,8 +1011,7 @@ export default function Home() {
           </b>
 
           <strong>
-            {match.score_a ||
-              "—"}
+            {match.score_a || "—"}
           </strong>
         </div>
 
@@ -1158,8 +1022,7 @@ export default function Home() {
           </b>
 
           <strong>
-            {match.score_b ||
-              "—"}
+            {match.score_b || "—"}
           </strong>
         </div>
 
@@ -1170,17 +1033,281 @@ export default function Home() {
           {" · "}
           {match.status}
         </small>
-
       </div>
     );
   }
 
-  /* =======================================================
-     PAGE
-  ======================================================= */
+  /* ==========================================================
+     MOBILE LEADERBOARD CARD
+  ========================================================== */
+
+  function MobileLeaderboardRow({
+    row,
+    index,
+  }) {
+    const medal =
+      index === 0
+        ? "🥇"
+        : index === 1
+        ? "🥈"
+        : index === 2
+        ? "🥉"
+        : `${index + 1}`;
+
+    return (
+      <div
+        className={`mobileStandingsRow ${
+          index < 3
+            ? "topThree"
+            : ""
+        }`}
+      >
+        <div className="mobileRank">
+          {medal}
+        </div>
+
+        <div className="mobileClub">
+          <strong>
+            {row.name}
+          </strong>
+
+          <div className="mobileStats">
+            <span>
+              P {row.played}
+            </span>
+
+            <span>
+              W {row.wins}
+            </span>
+
+            {!isCricket &&
+              !isFootball && (
+                <span>
+                  L {row.losses}
+                </span>
+              )}
+
+            {isCricket && (
+              <>
+                <span>
+                  L {row.losses}
+                </span>
+
+                <span>
+                  NR {row.noResults}
+                </span>
+              </>
+            )}
+
+            {isFootball && (
+              <span>
+                L {row.losses}
+              </span>
+            )}
+          </div>
+
+          {isCricket && (
+            <div className="mobileSecondary">
+              NRR{" "}
+              <b>
+                {formatNRR(
+                  row.nrr
+                )}
+              </b>
+            </div>
+          )}
+
+          {isFootball && (
+            <div className="mobileSecondary">
+              GD{" "}
+              <b>
+                {formatNumber(
+                  row.pd
+                )}
+              </b>
+            </div>
+          )}
+
+          {usesPD && (
+            <div className="mobileSecondary">
+              PD{" "}
+              <b>
+                {formatNumber(
+                  row.pd
+                )}
+              </b>
+            </div>
+          )}
+        </div>
+
+        <div className="mobilePoints">
+          <strong>
+            {row.points}
+          </strong>
+
+          <small>PTS</small>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <main>
+
+      {/* ======================================================
+          STYLES
+      ====================================================== */}
+
+      <style jsx>{`
+        .standingsDesktop {
+          display: block;
+          width: 100%;
+        }
+
+        .standingsMobile {
+          display: none;
+        }
+
+        .standingsTable {
+          width: 100%;
+          border-collapse: collapse;
+          margin-top: 18px;
+        }
+
+        .standingsTable th {
+          text-align: center;
+          padding: 11px 8px;
+          font-size: 12px;
+          opacity: 0.65;
+          border-bottom: 1px solid
+            rgba(255, 255, 255, 0.12);
+        }
+
+        .standingsTable td {
+          padding: 14px 8px;
+          text-align: center;
+          border-bottom: 1px solid
+            rgba(255, 255, 255, 0.08);
+        }
+
+        .standingsTable td.clubCell {
+          text-align: left;
+          font-weight: 700;
+        }
+
+        .topRow {
+          background: rgba(
+            255,
+            255,
+            255,
+            0.045
+          );
+        }
+
+        .mobileStandings {
+          margin-top: 16px;
+        }
+
+        .mobileStandingsRow {
+          width: 100%;
+          display: grid;
+          grid-template-columns:
+            36px minmax(0, 1fr) 58px;
+          align-items: center;
+          gap: 8px;
+          padding: 13px 8px;
+          border-bottom: 1px solid
+            rgba(255, 255, 255, 0.09);
+          box-sizing: border-box;
+        }
+
+        .mobileStandingsRow.topThree {
+          background: rgba(
+            255,
+            255,
+            255,
+            0.035
+          );
+          border-radius: 10px;
+          margin-bottom: 4px;
+        }
+
+        .mobileRank {
+          text-align: center;
+          font-size: 18px;
+          font-weight: 800;
+        }
+
+        .mobileClub {
+          min-width: 0;
+        }
+
+        .mobileClub strong {
+          display: block;
+          font-size: 15px;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .mobileStats {
+          display: flex;
+          gap: 8px;
+          margin-top: 5px;
+          font-size: 11px;
+          opacity: 0.7;
+          flex-wrap: wrap;
+        }
+
+        .mobileSecondary {
+          margin-top: 4px;
+          font-size: 11px;
+          opacity: 0.72;
+        }
+
+        .mobilePoints {
+          text-align: right;
+          display: flex;
+          flex-direction: column;
+          align-items: flex-end;
+        }
+
+        .mobilePoints strong {
+          font-size: 20px;
+          line-height: 1;
+        }
+
+        .mobilePoints small {
+          font-size: 9px;
+          margin-top: 3px;
+          opacity: 0.6;
+        }
+
+        .tableLegend {
+          margin-top: 12px;
+          font-size: 11px;
+          line-height: 1.6;
+          opacity: 0.65;
+        }
+
+        @media (max-width: 700px) {
+          .standingsDesktop {
+            display: none;
+          }
+
+          .standingsMobile {
+            display: block;
+          }
+
+          .section {
+            width: 100%;
+          }
+        }
+      `}</style>
+
+      {/* ======================================================
+          HEADER
+      ====================================================== */}
 
       <header>
         <div className="logo">
@@ -1193,8 +1320,11 @@ export default function Home() {
         </a>
       </header>
 
-      <section className="hero">
+      {/* ======================================================
+          HERO
+      ====================================================== */}
 
+      <section className="hero">
         <small>
           INTER-CLUB SPORTS
           CHAMPIONSHIP
@@ -1207,24 +1337,21 @@ export default function Home() {
         </h1>
 
         <p>
-          Live scores, results
-          and the race for the
-          Euphoria Club
-          Championship.
+          Live scores, results and
+          the race for the Euphoria
+          Club Championship.
         </p>
-
       </section>
 
       <section className="wrap">
 
-        {/* =================================================
+        {/* ====================================================
             LIVE + UPCOMING
-        ================================================= */}
+        ==================================================== */}
 
         <div className="grid">
 
           <div className="card">
-
             <div className="live">
               🔴 LIVE
             </div>
@@ -1238,8 +1365,8 @@ export default function Home() {
             ) : liveMatches.length ===
               0 ? (
               <p className="muted">
-                No live matches
-                right now.
+                No live matches right
+                now.
               </p>
             ) : (
               liveMatches.map(
@@ -1251,11 +1378,9 @@ export default function Home() {
                 )
               )
             )}
-
           </div>
 
           <div className="card">
-
             <div className="live">
               🟡 UPCOMING
             </div>
@@ -1281,25 +1406,26 @@ export default function Home() {
                 )
               )
             )}
-
           </div>
 
         </div>
 
-        {/* =================================================
+        {/* ====================================================
             COMPLETED
-        ================================================= */}
+        ==================================================== */}
 
         <div className="card section">
-
           <h2>
             ✅ Completed Matches
           </h2>
 
-          {completedMatches.length ===
-          0 ? (
+          {loading ? (
+            <p>Loading...</p>
+          ) : completedMatches.length ===
+            0 ? (
             <p className="muted">
-              No completed matches yet.
+              No completed matches
+              yet.
             </p>
           ) : (
             completedMatches.map(
@@ -1311,28 +1437,32 @@ export default function Home() {
               )
             )
           )}
-
         </div>
 
-        {/* =================================================
-            OVERALL
-        ================================================= */}
+        {/* ====================================================
+            OVERALL CLUB POINTS
+        ==================================================== */}
 
         <div className="card">
-
           <h2>
-            🏆 Overall Club Points
+            🏆 Overall Club
+            Championship
           </h2>
 
           {leaderboard.map(
-            ([club, pts], index) => (
+            (club, index) => (
               <div
                 className="rank"
                 key={club}
               >
-
                 <span>
-                  {index + 1}
+                  {index === 0
+                    ? "🥇"
+                    : index === 1
+                    ? "🥈"
+                    : index === 2
+                    ? "🥉"
+                    : index + 1}
                 </span>
 
                 <b>
@@ -1340,18 +1470,16 @@ export default function Home() {
                 </b>
 
                 <strong>
-                  {pts}
+                  {points[club] || 0}
                 </strong>
-
               </div>
             )
           )}
-
         </div>
 
-        {/* =================================================
+        {/* ====================================================
             TEAM SPORT LEADERBOARDS
-        ================================================= */}
+        ==================================================== */}
 
         <div className="card section">
 
@@ -1361,7 +1489,7 @@ export default function Home() {
           </h2>
 
           <p className="muted">
-            Standings are calculated
+            Live standings calculated
             automatically from
             completed matches.
           </p>
@@ -1369,12 +1497,11 @@ export default function Home() {
           {teamSports.length ===
           0 ? (
             <p className="muted">
-              No team sports
-              have been added yet.
+              No team sports have
+              been added yet.
             </p>
           ) : (
             <>
-
               <label
                 style={{
                   display: "block",
@@ -1389,50 +1516,41 @@ export default function Home() {
                   value={
                     selectedTeamSport
                   }
-                  onChange={(e) =>
+                  onChange={(event) =>
                     setSelectedTeamSport(
-                      e.target.value
+                      event.target.value
                     )
                   }
                   style={{
                     display: "block",
                     width: "100%",
-                    maxWidth:
-                      "450px",
+                    maxWidth: "450px",
                     marginTop: "8px",
                     padding: "10px",
                   }}
                 >
-
                   {teamSports.map(
                     (event) => (
                       <option
                         key={event.id}
                         value={event.id}
                       >
-                        {event.gender}
-                        {" · "}
+                        {event.gender} ·{" "}
                         {event.name}
                       </option>
                     )
                   )}
-
                 </select>
-
               </label>
 
               {selectedEvent && (
                 <>
-
                   <h3
                     style={{
-                      marginTop:
-                        "24px",
+                      marginTop: "24px",
                     }}
                   >
-                    {
-                      selectedEvent.name
-                    }
+                    {selectedEvent.name}
                     {" — "}
                     {
                       selectedEvent.gender
@@ -1444,10 +1562,9 @@ export default function Home() {
                     <div
                       style={{
                         padding:
-                          "20px 0",
+                          "18px 0",
                       }}
                     >
-
                       <p className="muted">
                         No matches
                         played yet.
@@ -1455,483 +1572,466 @@ export default function Home() {
 
                       <p>
                         All clubs
-                        currently have
-                        <b> 0 </b>
-                        matches played.
+                        currently
+                        have{" "}
+                        <b>0</b>{" "}
+                        matches
+                        played.
                       </p>
-
                     </div>
-                  ) : selectedIsCricket ? (
-
-                    /* =====================================
-                       CRICKET TABLE
-                    ===================================== */
-
-                    <div
-                      style={{
-                        overflowX:
-                          "auto",
-                        marginTop:
-                          "16px",
-                      }}
-                    >
-
-                      <table
-                        style={{
-                          width: "100%",
-                          borderCollapse:
-                            "collapse",
-                          minWidth:
-                            "900px",
-                        }}
-                      >
-
-                        <thead>
-                          <tr>
-
-                            <th>
-                              #
-                            </th>
-
-                            <th
-                              style={{
-                                textAlign:
-                                  "left",
-                              }}
-                            >
-                              Club
-                            </th>
-
-                            <th>
-                              P
-                            </th>
-
-                            <th>
-                              W
-                            </th>
-
-                            <th>
-                              L
-                            </th>
-
-                            <th>
-                              NR
-                            </th>
-
-                            <th>
-                              RF
-                            </th>
-
-                            <th>
-                              RA
-                            </th>
-
-                            <th>
-                              NRR
-                            </th>
-
-                            <th>
-                              Pts
-                            </th>
-
-                          </tr>
-                        </thead>
-
-                        <tbody>
-
-                          {sportLeaderboard.rows.map(
-                            (
-                              row,
-                              index
-                            ) => (
-                              <tr
-                                key={
-                                  row.id
-                                }
-                              >
-
-                                <td
-                                  style={{
-                                    textAlign:
-                                      "center",
-                                    fontWeight:
-                                      "bold",
-                                  }}
-                                >
-                                  {index ===
-                                  0
-                                    ? "🥇"
-                                    : index ===
-                                      1
-                                    ? "🥈"
-                                    : index ===
-                                      2
-                                    ? "🥉"
-                                    : index +
-                                      1}
-                                </td>
-
-                                <td
-                                  style={{
-                                    fontWeight:
-                                      "bold",
-                                  }}
-                                >
-                                  {row.name}
-                                </td>
-
-                                <td
-                                  style={{
-                                    textAlign:
-                                      "center",
-                                  }}
-                                >
-                                  {
-                                    row.played
-                                  }
-                                </td>
-
-                                <td
-                                  style={{
-                                    textAlign:
-                                      "center",
-                                  }}
-                                >
-                                  {row.wins}
-                                </td>
-
-                                <td
-                                  style={{
-                                    textAlign:
-                                      "center",
-                                  }}
-                                >
-                                  {
-                                    row.losses
-                                  }
-                                </td>
-
-                                <td
-                                  style={{
-                                    textAlign:
-                                      "center",
-                                  }}
-                                >
-                                  {
-                                    row.noResults
-                                  }
-                                </td>
-
-                                <td
-                                  style={{
-                                    textAlign:
-                                      "center",
-                                  }}
-                                >
-                                  {
-                                    row.runsFor
-                                  }
-                                </td>
-
-                                <td
-                                  style={{
-                                    textAlign:
-                                      "center",
-                                  }}
-                                >
-                                  {
-                                    row.runsAgainst
-                                  }
-                                </td>
-
-                                <td
-                                  style={{
-                                    textAlign:
-                                      "center",
-                                    fontWeight:
-                                      "bold",
-                                  }}
-                                >
-                                  {row.nrr >=
-                                  0
-                                    ? "+"
-                                    : ""}
-                                  {formatNumber(
-                                    row.nrr
-                                  )}
-                                </td>
-
-                                <td
-                                  style={{
-                                    textAlign:
-                                      "center",
-                                    fontWeight:
-                                      "bold",
-                                  }}
-                                >
-                                  {
-                                    row.points
-                                  }
-                                </td>
-
-                              </tr>
-                            )
-                          )}
-
-                        </tbody>
-
-                      </table>
-
-                      <p
-                        className="muted"
-                        style={{
-                          marginTop:
-                            "12px",
-                          fontSize:
-                            "13px",
-                        }}
-                      >
-                        <b>P</b> Played ·{" "}
-                        <b>W</b> Won ·{" "}
-                        <b>L</b> Lost ·{" "}
-                        <b>NR</b> No Result ·{" "}
-                        <b>RF</b> Runs For ·{" "}
-                        <b>RA</b> Runs Against ·{" "}
-                        <b>NRR</b> Net Run Rate ·{" "}
-                        <b>Pts</b> Competition
-                        Points
-                      </p>
-
-                    </div>
-
                   ) : (
+                    <>
+                      {/* =================================================
+                          DESKTOP TABLE
+                      ================================================== */}
 
-                    /* =====================================
-                       OTHER TEAM SPORTS
-                    ===================================== */
+                      <div className="standingsDesktop">
 
-                    <div
-                      style={{
-                        overflowX:
-                          "auto",
-                        marginTop:
-                          "16px",
-                      }}
-                    >
+                        <table className="standingsTable">
 
-                      <table
-                        style={{
-                          width: "100%",
-                          borderCollapse:
-                            "collapse",
-                          minWidth:
-                            "650px",
-                        }}
-                      >
+                          <thead>
+                            <tr>
+                              <th>
+                                POS
+                              </th>
 
-                        <thead>
-                          <tr>
-
-                            <th>
-                              #
-                            </th>
-
-                            <th
-                              style={{
-                                textAlign:
-                                  "left",
-                              }}
-                            >
-                              Club
-                            </th>
-
-                            <th>
-                              P
-                            </th>
-
-                            <th>
-                              W
-                            </th>
-
-                            <th>
-                              D
-                            </th>
-
-                            <th>
-                              L
-                            </th>
-
-                            <th>
-                              PF
-                            </th>
-
-                            <th>
-                              PA
-                            </th>
-
-                            <th>
-                              PD
-                            </th>
-
-                            <th>
-                              Pts
-                            </th>
-
-                          </tr>
-                        </thead>
-
-                        <tbody>
-
-                          {sportLeaderboard.rows.map(
-                            (
-                              row,
-                              index
-                            ) => (
-                              <tr
-                                key={
-                                  row.id
-                                }
+                              <th
+                                style={{
+                                  textAlign:
+                                    "left",
+                                }}
                               >
+                                CLUB
+                              </th>
 
-                                <td
-                                  style={{
-                                    textAlign:
-                                      "center",
-                                    fontWeight:
-                                      "bold",
-                                  }}
-                                >
-                                  {index ===
-                                  0
-                                    ? "🥇"
-                                    : index ===
-                                      1
-                                    ? "🥈"
-                                    : index ===
-                                      2
-                                    ? "🥉"
-                                    : index +
-                                      1}
-                                </td>
+                              <th>
+                                P
+                              </th>
 
-                                <td
-                                  style={{
-                                    fontWeight:
-                                      "bold",
-                                  }}
-                                >
-                                  {row.name}
-                                </td>
+                              <th>
+                                W
+                              </th>
 
-                                <td
-                                  style={{
-                                    textAlign:
-                                      "center",
-                                  }}
-                                >
-                                  {
-                                    row.played
+                              {!isCricket &&
+                                !isFootball && (
+                                  <th>
+                                    D
+                                  </th>
+                                )}
+
+                              {isFootball && (
+                                <th>
+                                  D
+                                </th>
+                              )}
+
+                              <th>
+                                L
+                              </th>
+
+                              {isCricket && (
+                                <th>
+                                  NR
+                                </th>
+                              )}
+
+                              {isCricket && (
+                                <th>
+                                  NRR
+                                </th>
+                              )}
+
+                              {isFootball && (
+                                <th>
+                                  GD
+                                </th>
+                              )}
+
+                              {usesPD && (
+                                <>
+                                  <th>
+                                    PF
+                                  </th>
+
+                                  <th>
+                                    PA
+                                  </th>
+
+                                  <th>
+                                    PD
+                                  </th>
+                                </>
+                              )}
+
+                              <th>
+                                PTS
+                              </th>
+                            </tr>
+                          </thead>
+
+                          <tbody>
+                            {sportLeaderboard.rows.map(
+                              (
+                                row,
+                                index
+                              ) => (
+                                <tr
+                                  key={
+                                    row.id
                                   }
-                                </td>
-
-                                <td
-                                  style={{
-                                    textAlign:
-                                      "center",
-                                  }}
-                                >
-                                  {row.wins}
-                                </td>
-
-                                <td
-                                  style={{
-                                    textAlign:
-                                      "center",
-                                  }}
-                                >
-                                  {
-                                    row.draws
+                                  className={
+                                    index <
+                                    3
+                                      ? "topRow"
+                                      : ""
                                   }
-                                </td>
-
-                                <td
-                                  style={{
-                                    textAlign:
-                                      "center",
-                                  }}
                                 >
-                                  {
-                                    row.losses
-                                  }
-                                </td>
+                                  <td
+                                    style={{
+                                      fontWeight:
+                                        "800",
+                                    }}
+                                  >
+                                    {index ===
+                                    0
+                                      ? "🥇"
+                                      : index ===
+                                        1
+                                      ? "🥈"
+                                      : index ===
+                                        2
+                                      ? "🥉"
+                                      : index +
+                                        1}
+                                  </td>
 
-                                <td
-                                  style={{
-                                    textAlign:
-                                      "center",
-                                  }}
-                                >
-                                  {formatNumber(
-                                    row.pf
+                                  <td className="clubCell">
+                                    {
+                                      row.name
+                                    }
+                                  </td>
+
+                                  <td>
+                                    {
+                                      row.played
+                                    }
+                                  </td>
+
+                                  <td>
+                                    {
+                                      row.wins
+                                    }
+                                  </td>
+
+                                  {(isFootball ||
+                                    (!isCricket &&
+                                      !usesPD)) && (
+                                    <td>
+                                      {
+                                        row.draws
+                                      }
+                                    </td>
                                   )}
-                                </td>
 
-                                <td
-                                  style={{
-                                    textAlign:
-                                      "center",
-                                  }}
-                                >
-                                  {formatNumber(
-                                    row.pa
+                                  <td>
+                                    {
+                                      row.losses
+                                    }
+                                  </td>
+
+                                  {isCricket && (
+                                    <td>
+                                      {
+                                        row.noResults
+                                      }
+                                    </td>
                                   )}
-                                </td>
 
-                                <td
-                                  style={{
-                                    textAlign:
-                                      "center",
-                                    fontWeight:
-                                      "bold",
-                                  }}
-                                >
-                                  {row.pd >
-                                  0
-                                    ? "+"
-                                    : ""}
-                                  {formatNumber(
-                                    row.pd
+                                  {isCricket && (
+                                    <td
+                                      style={{
+                                        fontWeight:
+                                          "700",
+                                      }}
+                                    >
+                                      {formatNRR(
+                                        row.nrr
+                                      )}
+                                    </td>
                                   )}
-                                </td>
 
-                                <td
-                                  style={{
-                                    textAlign:
-                                      "center",
-                                    fontWeight:
-                                      "bold",
-                                  }}
-                                >
-                                  {
-                                    row.points
-                                  }
-                                </td>
+                                  {isFootball && (
+                                    <td
+                                      style={{
+                                        fontWeight:
+                                          "700",
+                                      }}
+                                    >
+                                      {row.pd >
+                                      0
+                                        ? "+"
+                                        : ""}
+                                      {
+                                        row.pd
+                                      }
+                                    </td>
+                                  )}
 
-                              </tr>
-                            )
+                                  {usesPD && (
+                                    <>
+                                      <td>
+                                        {formatNumber(
+                                          row.pf
+                                        )}
+                                      </td>
+
+                                      <td>
+                                        {formatNumber(
+                                          row.pa
+                                        )}
+                                      </td>
+
+                                      <td
+                                        style={{
+                                          fontWeight:
+                                            "700",
+                                        }}
+                                      >
+                                        {row.pd >
+                                        0
+                                          ? "+"
+                                          : ""}
+                                        {formatNumber(
+                                          row.pd
+                                        )}
+                                      </td>
+                                    </>
+                                  )}
+
+                                  <td
+                                    style={{
+                                      fontWeight:
+                                        "900",
+                                      fontSize:
+                                        "16px",
+                                    }}
+                                  >
+                                    {
+                                      row.points
+                                    }
+                                  </td>
+                                </tr>
+                              )
+                            )}
+                          </tbody>
+                        </table>
+
+                        <div className="tableLegend">
+                          <b>P</b>{" "}
+                          Played ·{" "}
+                          <b>W</b>{" "}
+                          Won ·{" "}
+                          <b>D</b>{" "}
+                          Draw ·{" "}
+                          <b>L</b>{" "}
+                          Lost ·{" "}
+                          {isCricket && (
+                            <>
+                              <b>NR</b>{" "}
+                              No Result ·{" "}
+                              <b>NRR</b>{" "}
+                              Net Run Rate ·{" "}
+                            </>
                           )}
+                          {isFootball && (
+                            <>
+                              <b>GD</b>{" "}
+                              Goal Difference ·{" "}
+                            </>
+                          )}
+                          {usesPD && (
+                            <>
+                              <b>PF</b>{" "}
+                              Points For ·{" "}
+                              <b>PA</b>{" "}
+                              Points Against ·{" "}
+                              <b>PD</b>{" "}
+                              Point Difference ·{" "}
+                            </>
+                          )}
+                          <b>PTS</b>{" "}
+                          Competition Points
+                        </div>
+                      </div>
 
-                        </tbody>
+                      {/* =================================================
+                          MOBILE CARDS
+                      ================================================== */}
 
-                      </table>
+                      <div className="standingsMobile">
 
-                    </div>
+                        {sportLeaderboard.rows.map(
+                          (
+                            row,
+                            index
+                          ) => (
+                            <MobileLeaderboardRow
+                              key={
+                                row.id
+                              }
+                              row={row}
+                              index={
+                                index
+                              }
+                            />
+                          )
+                        )}
+
+                        <div className="tableLegend">
+                          {isCricket ? (
+                            <>
+                              <b>P</b>{" "}
+                              Played ·{" "}
+                              <b>W</b>{" "}
+                              Won ·{" "}
+                              <b>L</b>{" "}
+                              Lost ·{" "}
+                              <b>NR</b>{" "}
+                              No Result ·{" "}
+                              <b>NRR</b>{" "}
+                              Net Run Rate ·{" "}
+                              <b>PTS</b>{" "}
+                              Points
+                            </>
+                          ) : (
+                            <>
+                              <b>P</b>{" "}
+                              Played ·{" "}
+                              <b>W</b>{" "}
+                              Won ·{" "}
+                              <b>L</b>{" "}
+                              Lost ·{" "}
+                              <b>PTS</b>{" "}
+                              Points
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </>
                   )}
-
                 </>
               )}
-
             </>
+          )}
+        </div>
+
+        {/* ====================================================
+            POINTS SYSTEM
+        ==================================================== */}
+
+        <div className="card section">
+
+          <h2>
+            Points System
+          </h2>
+
+          <div className="rules">
+
+            <div>
+              <b>
+                Team
+              </b>
+
+              <span>
+                🥇 25 · 🥈 15 · 🥉 7
+              </span>
+            </div>
+
+            <div>
+              <b>
+                Doubles / Mixed
+              </b>
+
+              <span>
+                🥇 15 · 🥈 10 · 🥉 7
+              </span>
+            </div>
+
+            <div>
+              <b>
+                Individual
+              </b>
+
+              <span>
+                🥇 10 · 🥈 7 · 🥉 5
+              </span>
+            </div>
+
+          </div>
+        </div>
+
+        {/* ====================================================
+            EVENTS
+        ==================================================== */}
+
+        <div className="card section">
+
+          <h2>
+            Events
+          </h2>
+
+          {Object.entries(
+            eventGroups
+          ).map(
+            ([group, sports]) => (
+              <div
+                className="eventGroup"
+                key={group}
+              >
+                <h3>
+                  {group}
+                </h3>
+
+                <div className="pills">
+                  {sports.map(
+                    (sport) => (
+                      <span
+                        key={sport}
+                      >
+                        {sport}
+                      </span>
+                    )
+                  )}
+                </div>
+              </div>
+            )
+          )}
+
+          {events.length > 0 && (
+            <div
+              className="eventGroup"
+              style={{
+                marginTop: "24px",
+              }}
+            >
+              <h3>
+                Added Events
+              </h3>
+
+              <div className="pills">
+                {events.map(
+                  (event) => (
+                    <span
+                      key={event.id}
+                    >
+                      {event.name}
+                      {" · "}
+                      {event.gender}
+                    </span>
+                  )
+                )}
+              </div>
+            </div>
           )}
 
         </div>
