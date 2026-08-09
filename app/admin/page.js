@@ -3,14 +3,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../../lib/supabase";
 
-const DEFAULT_CLUBS = [
-  { id: 1, name: "Falcons" },
-  { id: 2, name: "Eagles" },
-  { id: 3, name: "Thunderbirds" },
-  { id: 4, name: "Griffins" },
-  { id: 5, name: "Phoenix" }
-];
-
 function getPoints(category, position) {
   const type = String(category || "").toLowerCase();
 
@@ -18,19 +10,20 @@ function getPoints(category, position) {
     return position === 1 ? 25 : position === 2 ? 15 : 7;
   }
 
-  if (
-    type.includes("double") ||
-    type.includes("mixed")
-  ) {
+  if (type.includes("double") || type.includes("mixed")) {
     return position === 1 ? 15 : position === 2 ? 10 : 7;
   }
 
   return position === 1 ? 10 : position === 2 ? 7 : 5;
 }
 
+function isCricketEvent(event) {
+  return String(event?.name || "").toLowerCase() === "cricket";
+}
+
 export default function Admin() {
   const [events, setEvents] = useState([]);
-  const [clubs, setClubs] = useState(DEFAULT_CLUBS);
+  const [clubs, setClubs] = useState([]);
   const [matches, setMatches] = useState([]);
   const [results, setResults] = useState([]);
 
@@ -43,7 +36,15 @@ export default function Admin() {
     club_b_id: "",
     score_a: "",
     score_b: "",
-    status: "Upcoming"
+    status: "Upcoming",
+
+    batting_first_club_id: "",
+    innings1_runs: "",
+    innings1_wickets: "",
+    innings1_overs: "",
+    innings2_runs: "",
+    innings2_wickets: "",
+    innings2_overs: ""
   });
 
   const [resultForm, setResultForm] = useState({
@@ -90,6 +91,13 @@ export default function Admin() {
           status,
           match_time,
           winner_club_id,
+          batting_first_club_id,
+          innings1_runs,
+          innings1_wickets,
+          innings1_overs,
+          innings2_runs,
+          innings2_wickets,
+          innings2_overs,
           events(name, gender, category),
           club_a:club_a_id(name),
           club_b:club_b_id(name)
@@ -111,36 +119,13 @@ export default function Admin() {
         .order("position")
     ]);
 
-    if (eventError) {
-      console.error("Events error:", eventError);
-    }
-
-    if (clubError) {
-      console.error("Clubs error:", clubError);
-    }
-
-    if (matchError) {
-      console.error("Matches error:", matchError);
-    }
-
-    if (resultError) {
-      console.error("Results error:", resultError);
-    }
+    if (eventError) console.error("Events error:", eventError);
+    if (clubError) console.error("Clubs error:", clubError);
+    if (matchError) console.error("Matches error:", matchError);
+    if (resultError) console.error("Results error:", resultError);
 
     setEvents(e || []);
-
-    /*
-      IMPORTANT:
-      If Supabase returns the clubs, use them.
-      If the SELECT is blocked by RLS or returns no
-      rows, use the five clubs already in your project.
-    */
-    if (c && c.length > 0) {
-      setClubs(c);
-    } else {
-      setClubs(DEFAULT_CLUBS);
-    }
-
+    setClubs(c || []);
     setMatches(m || []);
     setResults(r || []);
 
@@ -157,6 +142,12 @@ export default function Admin() {
   useEffect(() => {
     load();
   }, []);
+
+  const selectedEvent = events.find(
+    (event) => String(event.id) === String(form.event_id)
+  );
+
+  const cricketSelected = isCricketEvent(selectedEvent);
 
   // =====================================================
   // ADD SPORT / EVENT
@@ -187,9 +178,7 @@ export default function Admin() {
       return;
     }
 
-    setMsg(
-      `✅ ${eventForm.gender} ${name} added successfully.`
-    );
+    setMsg(`✅ ${eventForm.gender} ${name} added successfully.`);
 
     setEventForm({
       name: "",
@@ -224,864 +213,18 @@ export default function Admin() {
     }
 
     if (form.club_a_id === form.club_b_id) {
-      setMsg(
-        "Club A and Club B must be different."
-      );
+      setMsg("Club A and Club B must be different.");
       return;
     }
 
-    const { error } = await supabase
-      .from("matches")
-      .insert({
-        event_id: Number(form.event_id),
-        club_a_id: Number(form.club_a_id),
-        club_b_id: Number(form.club_b_id),
-        score_a: form.score_a || null,
-        score_b: form.score_b || null,
-        status: form.status
-      });
-
-    if (error) {
-      setMsg(error.message);
-      return;
-    }
-
-    setMsg("✅ Match created successfully.");
-
-    setForm((old) => ({
-      ...old,
-      club_a_id: "",
-      club_b_id: "",
-      score_a: "",
-      score_b: ""
-    }));
-
-    await load();
-  }
-
-  // =====================================================
-  // UPDATE MATCH
-  // =====================================================
-
-  async function updateMatch(id, patch) {
-    setMsg("");
-
-    const { error } = await supabase
-      .from("matches")
-      .update(patch)
-      .eq("id", id);
-
-    if (error) {
-      setMsg(error.message);
-      return;
-    }
-
-    setMsg("✅ Match updated.");
-
-    await load();
-  }
-
-  // =====================================================
-  // DELETE MATCH
-  // =====================================================
-
-  async function deleteMatch(id) {
-    const ok = window.confirm(
-      "Delete this match permanently?"
-    );
-
-    if (!ok) return;
-
-    setMsg("");
-
-    const { error } = await supabase
-      .from("matches")
-      .delete()
-      .eq("id", id);
-
-    if (error) {
-      setMsg(error.message);
-      return;
-    }
-
-    setMsg("🗑️ Match deleted.");
-
-    await load();
-  }
-
-  // =====================================================
-  // FINALIZE RESULT
-  // =====================================================
-
-  async function finalizeResult(e) {
-    e.preventDefault();
-    setMsg("");
-
-    if (
-      !resultForm.event_id ||
-      !resultForm.first ||
-      !resultForm.second ||
-      !resultForm.third
-    ) {
-      setMsg(
-        "Please select 1st, 2nd and 3rd place."
-      );
-      return;
-    }
-
-    const selected = [
-      resultForm.first,
-      resultForm.second,
-      resultForm.third
-    ];
-
-    if (new Set(selected).size !== 3) {
-      setMsg(
-        "1st, 2nd and 3rd must be different clubs."
-      );
-      return;
-    }
-
-    const event = events.find(
-      (x) =>
-        String(x.id) ===
-        String(resultForm.event_id)
-    );
-
-    if (!event) {
-      setMsg("Event not found.");
-      return;
-    }
-
-    const rows = [
-      {
-        event_id: Number(resultForm.event_id),
-        club_id: Number(resultForm.first),
-        position: 1,
-        points: getPoints(
-          event.category,
-          1
-        )
-      },
-      {
-        event_id: Number(resultForm.event_id),
-        club_id: Number(resultForm.second),
-        position: 2,
-        points: getPoints(
-          event.category,
-          2
-        )
-      },
-      {
-        event_id: Number(resultForm.event_id),
-        club_id: Number(resultForm.third),
-        position: 3,
-        points: getPoints(
-          event.category,
-          3
-        )
+    if (cricketSelected) {
+      if (!form.batting_first_club_id) {
+        setMsg("Please select which club batted first.");
+        return;
       }
-    ];
 
-    const { error } = await supabase
-      .from("event_results")
-      .upsert(rows, {
-        onConflict: "event_id,position"
-      });
-
-    if (error) {
-      setMsg(error.message);
-      return;
-    }
-
-    setMsg(
-      "🏆 Result finalized and points awarded!"
-    );
-
-    setResultForm({
-      event_id: "",
-      first: "",
-      second: "",
-      third: ""
-    });
-
-    await load();
-  }
-
-  // =====================================================
-  // DELETE RESULT
-  // =====================================================
-
-  async function deleteResult(id) {
-    const ok = window.confirm(
-      "Delete this finalized result?"
-    );
-
-    if (!ok) return;
-
-    setMsg("");
-
-    const { error } = await supabase
-      .from("event_results")
-      .delete()
-      .eq("id", id);
-
-    if (error) {
-      setMsg(error.message);
-      return;
-    }
-
-    setMsg("🗑️ Result deleted.");
-
-    await load();
-  }
-
-  // =====================================================
-  // CLUB DROPDOWN
-  // =====================================================
-
-  function ClubOptions() {
-    return (
-      <>
-        <option value="">
-          Select Club
-        </option>
-
-        {clubs.map((club) => (
-          <option
-            key={club.id}
-            value={club.id}
-          >
-            {club.name}
-          </option>
-        ))}
-      </>
-    );
-  }
-
-  // =====================================================
-  // PAGE
-  // =====================================================
-
-  return (
-    <main>
-
-      <header>
-        <div className="logo">
-          EUPHORIA <span>ADMIN</span>
-        </div>
-
-        <a href="/">
-          PUBLIC SITE
-        </a>
-      </header>
-
-
-      <section className="wrap admin">
-
-        {/* ADD SPORT */}
-
-        <div className="card">
-
-          <h2>
-            ➕ Add Sport / Event
-          </h2>
-
-          <p className="muted">
-            Add a new sport whenever you
-            discover one that is missing.
-          </p>
-
-          <form onSubmit={addEvent}>
-
-            <label>
-              Sport / Event Name
-
-              <input
-                value={eventForm.name}
-                placeholder="Example: Chess"
-                onChange={(e) =>
-                  setEventForm({
-                    ...eventForm,
-                    name: e.target.value
-                  })
-                }
-              />
-            </label>
-
-
-            <label>
-              Gender
-
-              <select
-                value={eventForm.gender}
-                onChange={(e) =>
-                  setEventForm({
-                    ...eventForm,
-                    gender: e.target.value
-                  })
-                }
-              >
-                <option value="Men's">
-                  Men's
-                </option>
-
-                <option value="Women's">
-                  Women's
-                </option>
-
-                <option value="Mixed">
-                  Mixed
-                </option>
-              </select>
-            </label>
-
-
-            <label>
-              Category
-
-              <select
-                value={eventForm.category}
-                onChange={(e) =>
-                  setEventForm({
-                    ...eventForm,
-                    category: e.target.value
-                  })
-                }
-              >
-                <option value="Team">
-                  Team
-                </option>
-
-                <option value="Doubles">
-                  Doubles
-                </option>
-
-                <option value="Mixed Doubles">
-                  Mixed Doubles
-                </option>
-
-                <option value="Individual">
-                  Individual
-                </option>
-              </select>
-            </label>
-
-
-            <button type="submit">
-              Add Sport / Event
-            </button>
-
-          </form>
-        </div>
-
-
-        {/* CREATE MATCH */}
-
-        <div className="card">
-
-          <h1>
-            Admin Dashboard
-          </h1>
-
-          <p className="muted">
-            Create matches and update live
-            scores.
-          </p>
-
-          <form onSubmit={addMatch}>
-
-            <label>
-              Event
-
-              <select
-                value={form.event_id}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    event_id: e.target.value
-                  })
-                }
-              >
-                <option value="">
-                  Select Event
-                </option>
-
-                {events.map((event) => (
-                  <option
-                    key={event.id}
-                    value={event.id}
-                  >
-                    {event.gender} ·{" "}
-                    {event.name} ·{" "}
-                    {event.category}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-
-            <label>
-              Club A
-
-              <select
-                value={form.club_a_id}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    club_a_id: e.target.value
-                  })
-                }
-              >
-                <ClubOptions />
-              </select>
-            </label>
-
-
-            <label>
-              Club B
-
-              <select
-                value={form.club_b_id}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    club_b_id: e.target.value
-                  })
-                }
-              >
-                <ClubOptions />
-              </select>
-            </label>
-
-
-            <div className="two">
-
-              <label>
-                Score A
-
-                <input
-                  value={form.score_a}
-                  onChange={(e) =>
-                    setForm({
-                      ...form,
-                      score_a: e.target.value
-                    })
-                  }
-                />
-              </label>
-
-
-              <label>
-                Score B
-
-                <input
-                  value={form.score_b}
-                  onChange={(e) =>
-                    setForm({
-                      ...form,
-                      score_b: e.target.value
-                    })
-                  }
-                />
-              </label>
-
-            </div>
-
-
-            <label>
-              Status
-
-              <select
-                value={form.status}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    status: e.target.value
-                  })
-                }
-              >
-                <option value="Upcoming">
-                  Upcoming
-                </option>
-
-                <option value="Live">
-                  Live
-                </option>
-
-                <option value="Final">
-                  Final
-                </option>
-              </select>
-            </label>
-
-
-            <button type="submit">
-              Create Match
-            </button>
-
-          </form>
-        </div>
-
-
-        {/* MESSAGE */}
-
-        {msg && (
-          <div className="card">
-            <p>{msg}</p>
-          </div>
-        )}
-
-
-        {/* FINALIZE RESULT */}
-
-        <div className="card">
-
-          <h2>
-            🏆 Finalize Event Result
-          </h2>
-
-          <p className="muted">
-            Select the final 1st, 2nd and 3rd
-            place clubs. Points are calculated
-            automatically.
-          </p>
-
-          <form onSubmit={finalizeResult}>
-
-            <label>
-              Event
-
-              <select
-                value={resultForm.event_id}
-                onChange={(e) =>
-                  setResultForm({
-                    ...resultForm,
-                    event_id: e.target.value
-                  })
-                }
-              >
-                <option value="">
-                  Select Event
-                </option>
-
-                {events.map((event) => (
-                  <option
-                    key={event.id}
-                    value={event.id}
-                  >
-                    {event.gender} ·{" "}
-                    {event.name} ·{" "}
-                    {event.category}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-
-            <label>
-              🥇 1st Place
-
-              <select
-                value={resultForm.first}
-                onChange={(e) =>
-                  setResultForm({
-                    ...resultForm,
-                    first: e.target.value
-                  })
-                }
-              >
-                <ClubOptions />
-              </select>
-            </label>
-
-
-            <label>
-              🥈 2nd Place
-
-              <select
-                value={resultForm.second}
-                onChange={(e) =>
-                  setResultForm({
-                    ...resultForm,
-                    second: e.target.value
-                  })
-                }
-              >
-                <ClubOptions />
-              </select>
-            </label>
-
-
-            <label>
-              🥉 3rd Place
-
-              <select
-                value={resultForm.third}
-                onChange={(e) =>
-                  setResultForm({
-                    ...resultForm,
-                    third: e.target.value
-                  })
-                }
-              >
-                <ClubOptions />
-              </select>
-            </label>
-
-
-            <button type="submit">
-              Finalize Result & Award Points
-            </button>
-
-          </form>
-        </div>
-
-
-        {/* EXISTING MATCHES */}
-
-        <div className="card">
-
-          <h2>
-            Existing Matches
-          </h2>
-
-          {loading ? (
-            <p className="muted">
-              Loading...
-            </p>
-          ) : matches.length === 0 ? (
-            <p className="muted">
-              No matches yet.
-            </p>
-          ) : (
-            matches.map((match) => (
-              <div
-                className="adminMatch"
-                key={match.id}
-              >
-
-                <b>
-                  {match.club_a?.name ||
-                    "TBD"}
-
-                  {" vs "}
-
-                  {match.club_b?.name ||
-                    "TBD"}
-                </b>
-
-
-                <small>
-                  {match.events?.gender}
-                  {" · "}
-                  {match.events?.name}
-                  {" · "}
-                  {match.events?.category}
-                </small>
-
-
-                <div className="two">
-
-                  <input
-                    defaultValue={
-                      match.score_a || ""
-                    }
-                    id={`score-a-${match.id}`}
-                  />
-
-                  <input
-                    defaultValue={
-                      match.score_b || ""
-                    }
-                    id={`score-b-${match.id}`}
-                  />
-
-                </div>
-
-
-                <select
-                  defaultValue={match.status}
-                  onChange={(e) =>
-                    updateMatch(
-                      match.id,
-                      {
-                        status:
-                          e.target.value
-                      }
-                    )
-                  }
-                >
-                  <option value="Upcoming">
-                    Upcoming
-                  </option>
-
-                  <option value="Live">
-                    Live
-                  </option>
-
-                  <option value="Final">
-                    Final
-                  </option>
-                </select>
-
-
-                <button
-                  onClick={() => {
-
-                    const scoreA =
-                      document.getElementById(
-                        `score-a-${match.id}`
-                      )?.value || "";
-
-                    const scoreB =
-                      document.getElementById(
-                        `score-b-${match.id}`
-                      )?.value || "";
-
-                    updateMatch(
-                      match.id,
-                      {
-                        score_a: scoreA,
-                        score_b: scoreB
-                      }
-                    );
-
-                  }}
-                >
-                  Save Score
-                </button>
-
-
-                <button
-                  style={{
-                    background: "#b42336",
-                    borderColor: "#b42336"
-                  }}
-                  onClick={() =>
-                    deleteMatch(match.id)
-                  }
-                >
-                  🗑️ Delete Match
-                </button>
-
-              </div>
-            ))
-          )}
-        </div>
-
-
-        {/* FINALIZED RESULTS */}
-
-        <div className="card">
-
-          <h2>
-            🏆 Finalized Results
-          </h2>
-
-          {results.length === 0 ? (
-            <p className="muted">
-              No finalized results yet.
-            </p>
-          ) : (
-            results.map((result) => (
-              <div
-                className="adminMatch"
-                key={result.id}
-              >
-
-                <b>
-
-                  {result.position === 1
-                    ? "🥇"
-                    : result.position === 2
-                    ? "🥈"
-                    : "🥉"}
-
-                  {" "}
-
-                  {result.clubs?.name ||
-                    "Unknown Club"}
-
-                </b>
-
-
-                <small>
-
-                  {result.events?.gender}
-                  {" · "}
-                  {result.events?.name}
-                  {" · "}
-                  {result.events?.category}
-
-                  {" — "}
-
-                  {result.points} points
-
-                </small>
-
-
-                <button
-                  style={{
-                    background: "#b42336",
-                    borderColor: "#b42336"
-                  }}
-                  onClick={() =>
-                    deleteResult(result.id)
-                  }
-                >
-                  🗑️ Delete Result
-                </button>
-
-              </div>
-            ))
-          )}
-        </div>
-
-
-        {/* ALL EVENTS */}
-
-        <div className="card">
-
-          <h2>
-            📋 All Events
-          </h2>
-
-          <p className="muted">
-            These events are available for
-            matches, results and public
-            leaderboards.
-          </p>
-
-
-          {events.length === 0 ? (
-            <p className="muted">
-              No events found.
-            </p>
-          ) : (
-            events.map((event) => (
-              <div
-                className="adminMatch"
-                key={event.id}
-              >
-
-                <b>
-                  {event.name}
-                </b>
-
-                <small>
-                  {event.gender}
-                  {" · "}
-                  {event.category}
-                </small>
-
-              </div>
-            ))
-          )}
-
-        </div>
-
-      </section>
-    </main>
-  );
-                               }
+      if (
+        form.batting_first_club_id !== form.club_a_id &&
+        form.batting_first_club_id !== form.club_b_id
+      ) {
+        setMsg("Batting first club must be Club A or Club B
