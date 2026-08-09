@@ -3,6 +3,14 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../../lib/supabase";
 
+const DEFAULT_CLUBS = [
+  { id: 1, name: "Falcons" },
+  { id: 2, name: "Eagles" },
+  { id: 3, name: "Thunderbirds" },
+  { id: 4, name: "Griffins" },
+  { id: 5, name: "Phoenix" }
+];
+
 function getPoints(category, position) {
   const type = String(category || "").toLowerCase();
 
@@ -10,7 +18,10 @@ function getPoints(category, position) {
     return position === 1 ? 25 : position === 2 ? 15 : 7;
   }
 
-  if (type.includes("double") || type.includes("mixed")) {
+  if (
+    type.includes("double") ||
+    type.includes("mixed")
+  ) {
     return position === 1 ? 15 : position === 2 ? 10 : 7;
   }
 
@@ -19,7 +30,7 @@ function getPoints(category, position) {
 
 export default function Admin() {
   const [events, setEvents] = useState([]);
-  const [clubs, setClubs] = useState([]);
+  const [clubs, setClubs] = useState(DEFAULT_CLUBS);
   const [matches, setMatches] = useState([]);
   const [results, setResults] = useState([]);
 
@@ -47,7 +58,6 @@ export default function Admin() {
     gender: "Men's",
     category: "Team"
   });
-
 
   async function load() {
     setLoading(true);
@@ -79,6 +89,7 @@ export default function Admin() {
           score_b,
           status,
           match_time,
+          winner_club_id,
           events(name, gender, category),
           club_a:club_a_id(name),
           club_b:club_b_id(name)
@@ -117,7 +128,19 @@ export default function Admin() {
     }
 
     setEvents(e || []);
-    setClubs(c || []);
+
+    /*
+      IMPORTANT:
+      If Supabase returns the clubs, use them.
+      If the SELECT is blocked by RLS or returns no
+      rows, use the five clubs already in your project.
+    */
+    if (c && c.length > 0) {
+      setClubs(c);
+    } else {
+      setClubs(DEFAULT_CLUBS);
+    }
+
     setMatches(m || []);
     setResults(r || []);
 
@@ -131,11 +154,9 @@ export default function Admin() {
     setLoading(false);
   }
 
-
   useEffect(() => {
     load();
   }, []);
-
 
   // =====================================================
   // ADD SPORT / EVENT
@@ -155,7 +176,7 @@ export default function Admin() {
     const { error } = await supabase
       .from("events")
       .insert({
-        name: name,
+        name,
         gender: eventForm.gender,
         category: eventForm.category,
         points_type: eventForm.category
@@ -178,7 +199,6 @@ export default function Admin() {
 
     await load();
   }
-
 
   // =====================================================
   // CREATE MATCH
@@ -204,7 +224,9 @@ export default function Admin() {
     }
 
     if (form.club_a_id === form.club_b_id) {
-      setMsg("Club A and Club B must be different.");
+      setMsg(
+        "Club A and Club B must be different."
+      );
       return;
     }
 
@@ -237,7 +259,6 @@ export default function Admin() {
     await load();
   }
 
-
   // =====================================================
   // UPDATE MATCH
   // =====================================================
@@ -259,7 +280,6 @@ export default function Admin() {
 
     await load();
   }
-
 
   // =====================================================
   // DELETE MATCH
@@ -288,7 +308,6 @@ export default function Admin() {
 
     await load();
   }
-
 
   // =====================================================
   // FINALIZE RESULT
@@ -339,19 +358,28 @@ export default function Admin() {
         event_id: Number(resultForm.event_id),
         club_id: Number(resultForm.first),
         position: 1,
-        points: getPoints(event.category, 1)
+        points: getPoints(
+          event.category,
+          1
+        )
       },
       {
         event_id: Number(resultForm.event_id),
         club_id: Number(resultForm.second),
         position: 2,
-        points: getPoints(event.category, 2)
+        points: getPoints(
+          event.category,
+          2
+        )
       },
       {
         event_id: Number(resultForm.event_id),
         club_id: Number(resultForm.third),
         position: 3,
-        points: getPoints(event.category, 3)
+        points: getPoints(
+          event.category,
+          3
+        )
       }
     ];
 
@@ -379,7 +407,6 @@ export default function Admin() {
 
     await load();
   }
-
 
   // =====================================================
   // DELETE RESULT
@@ -409,14 +436,37 @@ export default function Admin() {
     await load();
   }
 
+  // =====================================================
+  // CLUB DROPDOWN
+  // =====================================================
+
+  function ClubOptions() {
+    return (
+      <>
+        <option value="">
+          Select Club
+        </option>
+
+        {clubs.map((club) => (
+          <option
+            key={club.id}
+            value={club.id}
+          >
+            {club.name}
+          </option>
+        ))}
+      </>
+    );
+  }
+
+  // =====================================================
+  // PAGE
+  // =====================================================
 
   return (
     <main>
 
-      {/* HEADER */}
-
       <header>
-
         <div className="logo">
           EUPHORIA <span>ADMIN</span>
         </div>
@@ -424,24 +474,22 @@ export default function Admin() {
         <a href="/">
           PUBLIC SITE
         </a>
-
       </header>
 
 
       <section className="wrap admin">
 
-
-        {/* =====================================================
-            ADD SPORT / EVENT
-        ===================================================== */}
+        {/* ADD SPORT */}
 
         <div className="card">
 
-          <h2>➕ Add Sport / Event</h2>
+          <h2>
+            ➕ Add Sport / Event
+          </h2>
 
           <p className="muted">
-            Add a new sport whenever you discover
-            one that is missing.
+            Add a new sport whenever you
+            discover one that is missing.
           </p>
 
           <form onSubmit={addEvent}>
@@ -459,7 +507,6 @@ export default function Admin() {
                   })
                 }
               />
-
             </label>
 
 
@@ -475,7 +522,6 @@ export default function Admin() {
                   })
                 }
               >
-
                 <option value="Men's">
                   Men's
                 </option>
@@ -487,9 +533,7 @@ export default function Admin() {
                 <option value="Mixed">
                   Mixed
                 </option>
-
               </select>
-
             </label>
 
 
@@ -505,7 +549,6 @@ export default function Admin() {
                   })
                 }
               >
-
                 <option value="Team">
                   Team
                 </option>
@@ -521,9 +564,7 @@ export default function Admin() {
                 <option value="Individual">
                   Individual
                 </option>
-
               </select>
-
             </label>
 
 
@@ -532,13 +573,10 @@ export default function Admin() {
             </button>
 
           </form>
-
         </div>
 
 
-        {/* =====================================================
-            CREATE MATCH
-        ===================================================== */}
+        {/* CREATE MATCH */}
 
         <div className="card">
 
@@ -547,9 +585,9 @@ export default function Admin() {
           </h1>
 
           <p className="muted">
-            Create matches and update live scores.
+            Create matches and update live
+            scores.
           </p>
-
 
           <form onSubmit={addMatch}>
 
@@ -565,28 +603,21 @@ export default function Admin() {
                   })
                 }
               >
-
                 <option value="">
                   Select Event
                 </option>
 
                 {events.map((event) => (
-
                   <option
                     key={event.id}
                     value={event.id}
                   >
-
                     {event.gender} ·{" "}
                     {event.name} ·{" "}
                     {event.category}
-
                   </option>
-
                 ))}
-
               </select>
-
             </label>
 
 
@@ -602,26 +633,8 @@ export default function Admin() {
                   })
                 }
               >
-
-                <option value="">
-                  Select Club
-                </option>
-
-                {clubs.map((club) => (
-
-                  <option
-                    key={club.id}
-                    value={club.id}
-                  >
-
-                    {club.name}
-
-                  </option>
-
-                ))}
-
+                <ClubOptions />
               </select>
-
             </label>
 
 
@@ -637,26 +650,8 @@ export default function Admin() {
                   })
                 }
               >
-
-                <option value="">
-                  Select Club
-                </option>
-
-                {clubs.map((club) => (
-
-                  <option
-                    key={club.id}
-                    value={club.id}
-                  >
-
-                    {club.name}
-
-                  </option>
-
-                ))}
-
+                <ClubOptions />
               </select>
-
             </label>
 
 
@@ -674,7 +669,6 @@ export default function Admin() {
                     })
                   }
                 />
-
               </label>
 
 
@@ -690,7 +684,6 @@ export default function Admin() {
                     })
                   }
                 />
-
               </label>
 
             </div>
@@ -708,7 +701,6 @@ export default function Admin() {
                   })
                 }
               >
-
                 <option value="Upcoming">
                   Upcoming
                 </option>
@@ -720,9 +712,7 @@ export default function Admin() {
                 <option value="Final">
                   Final
                 </option>
-
               </select>
-
             </label>
 
 
@@ -731,28 +721,19 @@ export default function Admin() {
             </button>
 
           </form>
-
         </div>
 
 
         {/* MESSAGE */}
 
         {msg && (
-
           <div className="card">
-
-            <p>
-              {msg}
-            </p>
-
+            <p>{msg}</p>
           </div>
-
         )}
 
 
-        {/* =====================================================
-            FINALIZE RESULT
-        ===================================================== */}
+        {/* FINALIZE RESULT */}
 
         <div className="card">
 
@@ -765,7 +746,6 @@ export default function Admin() {
             place clubs. Points are calculated
             automatically.
           </p>
-
 
           <form onSubmit={finalizeResult}>
 
@@ -781,28 +761,21 @@ export default function Admin() {
                   })
                 }
               >
-
                 <option value="">
                   Select Event
                 </option>
 
                 {events.map((event) => (
-
                   <option
                     key={event.id}
                     value={event.id}
                   >
-
                     {event.gender} ·{" "}
                     {event.name} ·{" "}
                     {event.category}
-
                   </option>
-
                 ))}
-
               </select>
-
             </label>
 
 
@@ -818,26 +791,8 @@ export default function Admin() {
                   })
                 }
               >
-
-                <option value="">
-                  Select Club
-                </option>
-
-                {clubs.map((club) => (
-
-                  <option
-                    key={club.id}
-                    value={club.id}
-                  >
-
-                    {club.name}
-
-                  </option>
-
-                ))}
-
+                <ClubOptions />
               </select>
-
             </label>
 
 
@@ -853,26 +808,8 @@ export default function Admin() {
                   })
                 }
               >
-
-                <option value="">
-                  Select Club
-                </option>
-
-                {clubs.map((club) => (
-
-                  <option
-                    key={club.id}
-                    value={club.id}
-                  >
-
-                    {club.name}
-
-                  </option>
-
-                ))}
-
+                <ClubOptions />
               </select>
-
             </label>
 
 
@@ -888,26 +825,8 @@ export default function Admin() {
                   })
                 }
               >
-
-                <option value="">
-                  Select Club
-                </option>
-
-                {clubs.map((club) => (
-
-                  <option
-                    key={club.id}
-                    value={club.id}
-                  >
-
-                    {club.name}
-
-                  </option>
-
-                ))}
-
+                <ClubOptions />
               </select>
-
             </label>
 
 
@@ -916,13 +835,10 @@ export default function Admin() {
             </button>
 
           </form>
-
         </div>
 
 
-        {/* =====================================================
-            EXISTING MATCHES
-        ===================================================== */}
+        {/* EXISTING MATCHES */}
 
         <div className="card">
 
@@ -930,30 +846,22 @@ export default function Admin() {
             Existing Matches
           </h2>
 
-
           {loading ? (
-
             <p className="muted">
               Loading...
             </p>
-
           ) : matches.length === 0 ? (
-
             <p className="muted">
               No matches yet.
             </p>
-
           ) : (
-
             matches.map((match) => (
-
               <div
                 className="adminMatch"
                 key={match.id}
               >
 
                 <b>
-
                   {match.club_a?.name ||
                     "TBD"}
 
@@ -961,18 +869,15 @@ export default function Admin() {
 
                   {match.club_b?.name ||
                     "TBD"}
-
                 </b>
 
 
                 <small>
-
                   {match.events?.gender}
                   {" · "}
                   {match.events?.name}
                   {" · "}
                   {match.events?.category}
-
                 </small>
 
 
@@ -996,9 +901,7 @@ export default function Admin() {
 
 
                 <select
-                  defaultValue={
-                    match.status
-                  }
+                  defaultValue={match.status}
                   onChange={(e) =>
                     updateMatch(
                       match.id,
@@ -1009,7 +912,6 @@ export default function Admin() {
                     )
                   }
                 >
-
                   <option value="Upcoming">
                     Upcoming
                   </option>
@@ -1021,7 +923,6 @@ export default function Admin() {
                   <option value="Final">
                     Final
                   </option>
-
                 </select>
 
 
@@ -1048,9 +949,7 @@ export default function Admin() {
 
                   }}
                 >
-
                   Save Score
-
                 </button>
 
 
@@ -1063,23 +962,16 @@ export default function Admin() {
                     deleteMatch(match.id)
                   }
                 >
-
                   🗑️ Delete Match
-
                 </button>
 
               </div>
-
             ))
-
           )}
-
         </div>
 
 
-        {/* =====================================================
-            FINALIZED RESULTS
-        ===================================================== */}
+        {/* FINALIZED RESULTS */}
 
         <div className="card">
 
@@ -1087,17 +979,12 @@ export default function Admin() {
             🏆 Finalized Results
           </h2>
 
-
           {results.length === 0 ? (
-
             <p className="muted">
               No finalized results yet.
             </p>
-
           ) : (
-
             results.map((result) => (
-
               <div
                 className="adminMatch"
                 key={result.id}
@@ -1143,23 +1030,16 @@ export default function Admin() {
                     deleteResult(result.id)
                   }
                 >
-
                   🗑️ Delete Result
-
                 </button>
 
               </div>
-
             ))
-
           )}
-
         </div>
 
 
-        {/* =====================================================
-            ALL EVENTS
-        ===================================================== */}
+        {/* ALL EVENTS */}
 
         <div className="card">
 
@@ -1175,15 +1055,11 @@ export default function Admin() {
 
 
           {events.length === 0 ? (
-
             <p className="muted">
               No events found.
             </p>
-
           ) : (
-
             events.map((event) => (
-
               <div
                 className="adminMatch"
                 key={event.id}
@@ -1200,16 +1076,12 @@ export default function Admin() {
                 </small>
 
               </div>
-
             ))
-
           )}
 
         </div>
 
-
       </section>
-
     </main>
   );
-                  }
+                               }
