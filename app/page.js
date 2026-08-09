@@ -3,14 +3,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
 
-const clubMap = {
-  1: "Falcons",
-  2: "Eagles",
-  3: "Thunderbirds",
-  4: "Griffins",
-  5: "Phoenix"
-};
-
 const clubs = [
   "Falcons",
   "Eagles",
@@ -18,6 +10,14 @@ const clubs = [
   "Griffins",
   "Phoenix"
 ];
+
+const clubMap = {
+  1: "Falcons",
+  2: "Eagles",
+  3: "Thunderbirds",
+  4: "Griffins",
+  5: "Phoenix"
+};
 
 const eventGroups = {
   "Men's Team Sports": [
@@ -76,18 +76,40 @@ const eventGroups = {
   ]
 };
 
+
+/*
+  Build the sport dropdown from the actual events
+  stored in Supabase.
+*/
+function getEventLabel(event) {
+  return `${event.gender} · ${event.name}`;
+}
+
+
 export default function Home() {
+
   const [matches, setMatches] = useState([]);
+  const [results, setResults] = useState([]);
+  const [events, setEvents] = useState([]);
+
   const [points, setPoints] = useState({});
+
   const [loading, setLoading] = useState(true);
 
+  const [selectedEvent, setSelectedEvent] =
+    useState("");
+
+
   async function load() {
+
     setLoading(true);
 
     const [
       { data: m, error: matchesError },
-      { data: r, error: resultsError }
+      { data: r, error: resultsError },
+      { data: e, error: eventsError }
     ] = await Promise.all([
+
       supabase
         .from("matches")
         .select(`
@@ -107,12 +129,28 @@ export default function Home() {
 
       supabase
         .from("event_results")
-        .select(
-          "id,event_id,club_id,position,points"
-        )
+        .select(`
+          id,
+          event_id,
+          club_id,
+          position,
+          points
+        `)
         .order("event_id")
-        .order("position")
+        .order("position"),
+
+      supabase
+        .from("events")
+        .select(`
+          id,
+          name,
+          gender,
+          category
+        `)
+        .order("id")
+
     ]);
+
 
     if (matchesError) {
       console.error(
@@ -123,30 +161,26 @@ export default function Home() {
 
     if (resultsError) {
       console.error(
-        "Event results error:",
+        "Results error:",
         resultsError
       );
     }
 
-    const formattedMatches = (m || []).map(
-      (match) => ({
-        ...match,
+    if (eventsError) {
+      console.error(
+        "Events error:",
+        eventsError
+      );
+    }
 
-        clubAName:
-          clubMap[Number(match.club_a_id)] ||
-          "TBD",
 
-        clubBName:
-          clubMap[Number(match.club_b_id)] ||
-          "TBD"
-      })
-    );
-
-    setMatches(formattedMatches);
+    setMatches(m || []);
+    setResults(r || []);
+    setEvents(e || []);
 
 
     /*
-      CALCULATE OVERALL POINTS
+      OVERALL CLUB POINTS
     */
 
     const totals = {};
@@ -155,24 +189,53 @@ export default function Home() {
       totals[club] = 0;
     });
 
+
     (r || []).forEach((result) => {
+
       const clubName =
-        clubMap[Number(result.club_id)];
+        clubMap[
+          Number(result.club_id)
+        ];
 
       if (clubName) {
+
         totals[clubName] +=
           Number(result.points || 0);
+
       }
+
     });
 
+
     setPoints(totals);
+
+
+    /*
+      Automatically select first event
+      if nothing is selected yet.
+    */
+
+    if (
+      !selectedEvent &&
+      e &&
+      e.length > 0
+    ) {
+
+      setSelectedEvent(
+        String(e[0].id)
+      );
+
+    }
+
 
     setLoading(false);
   }
 
 
   useEffect(() => {
+
     load();
+
 
     const channel = supabase
       .channel("euphoria-live")
@@ -197,46 +260,120 @@ export default function Home() {
         load
       )
 
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "events"
+        },
+        load
+      )
+
       .subscribe();
 
+
     return () => {
-      supabase.removeChannel(channel);
+
+      supabase.removeChannel(
+        channel
+      );
+
     };
+
   }, []);
 
 
   /*
-    SEPARATE MATCHES BY STATUS
+    MATCH STATUS GROUPS
   */
 
-  const liveMatches = matches.filter(
-    (match) =>
-      String(match.status).toLowerCase() ===
-      "live"
-  );
+  const liveMatches =
+    matches.filter(
+      (match) =>
+        String(match.status)
+          .toLowerCase() === "live"
+    );
 
-  const upcomingMatches = matches.filter(
-    (match) =>
-      String(match.status).toLowerCase() ===
-      "upcoming"
-  );
 
-  const completedMatches = matches.filter(
-    (match) =>
-      String(match.status).toLowerCase() ===
-      "final"
-  );
+  const upcomingMatches =
+    matches.filter(
+      (match) =>
+        String(match.status)
+          .toLowerCase() === "upcoming"
+    );
+
+
+  const completedMatches =
+    matches.filter(
+      (match) =>
+        String(match.status)
+          .toLowerCase() === "final"
+    );
 
 
   /*
-    LEADERBOARD
+    OVERALL LEADERBOARD
   */
 
-  const leaderboard = [...clubs].sort(
-    (a, b) =>
-      (points[b] || 0) -
-      (points[a] || 0)
-  );
+  const leaderboard =
+    [...clubs].sort(
+      (a, b) =>
+        (points[b] || 0) -
+        (points[a] || 0)
+    );
+
+
+  /*
+    SPORT-SPECIFIC LEADERBOARD
+  */
+
+  const sportResults =
+    results.filter(
+      (result) =>
+        String(result.event_id) ===
+        String(selectedEvent)
+    );
+
+
+  const sportPoints = {};
+
+  clubs.forEach((club) => {
+    sportPoints[club] = 0;
+  });
+
+
+  sportResults.forEach((result) => {
+
+    const clubName =
+      clubMap[
+        Number(result.club_id)
+      ];
+
+    if (clubName) {
+
+      sportPoints[clubName] +=
+        Number(result.points || 0);
+
+    }
+
+  });
+
+
+  const sportLeaderboard =
+    [...clubs].sort(
+      (a, b) =>
+        (sportPoints[b] || 0) -
+        (sportPoints[a] || 0)
+    );
+
+
+  const selectedEventData =
+    events.find(
+      (event) =>
+        String(event.id) ===
+        String(selectedEvent)
+    );
 
 
   /*
@@ -244,39 +381,59 @@ export default function Home() {
   */
 
   function MatchCard({ match }) {
+
     return (
+
       <div className="match">
 
         <div>
+
           <b>
-            {match.clubAName}
+            {clubMap[
+              Number(match.club_a_id)
+            ] || "TBD"}
           </b>
 
           <strong>
             {match.score_a || "—"}
           </strong>
+
         </div>
 
+
         <div>
+
           <b>
-            {match.clubBName}
+            {clubMap[
+              Number(match.club_b_id)
+            ] || "TBD"}
           </b>
 
           <strong>
             {match.score_b || "—"}
           </strong>
+
         </div>
 
+
         <small>
+
           {match.events?.name}
+
           {" · "}
+
           {match.events?.gender}
+
           {" · "}
+
           {match.events?.category}
+
         </small>
 
       </div>
+
     );
+
   }
 
 
@@ -289,12 +446,15 @@ export default function Home() {
     matches,
     emptyText
   }) {
+
     return (
+
       <div className="card section">
 
         <h2>
           {title}
         </h2>
+
 
         {matches.length === 0 ? (
 
@@ -304,21 +464,28 @@ export default function Home() {
 
         ) : (
 
-          matches.map((match) => (
-            <MatchCard
-              key={match.id}
-              match={match}
-            />
-          ))
+          matches.map(
+            (match) => (
+
+              <MatchCard
+                key={match.id}
+                match={match}
+              />
+
+            )
+          )
 
         )}
 
       </div>
+
     );
+
   }
 
 
   return (
+
     <main>
 
       {/* HEADER */}
@@ -326,8 +493,12 @@ export default function Home() {
       <header>
 
         <div className="logo">
-          EUPHORIA <span>SPORTS</span>
+
+          EUPHORIA
+          <span>SPORTS</span>
+
         </div>
+
 
         <a href="/admin">
           ADMIN
@@ -344,15 +515,21 @@ export default function Home() {
           INTER-CLUB SPORTS CHAMPIONSHIP
         </small>
 
+
         <h1>
+
           THE GAME
           <br />
           IS ON.
+
         </h1>
 
+
         <p>
+
           Live scores, results and the race
           for the Euphoria Club Championship.
+
         </p>
 
       </section>
@@ -410,13 +587,22 @@ export default function Home() {
         )}
 
 
-        {/* LEADERBOARD */}
+        {/* OVERALL LEADERBOARD */}
 
         <div className="card section">
 
           <h2>
-            🏆 Overall Club Points
+            🏆 Overall Club Championship
           </h2>
+
+
+          <p className="muted">
+
+            Total points accumulated across
+            all sports and events.
+
+          </p>
+
 
           {leaderboard.map(
             (club, index) => (
@@ -427,20 +613,156 @@ export default function Home() {
               >
 
                 <span>
+
                   {index + 1}
+
                 </span>
 
+
                 <b>
+
                   {club}
+
                 </b>
 
+
                 <strong>
+
                   {points[club] || 0}
+
                 </strong>
 
               </div>
 
             )
+          )}
+
+        </div>
+
+
+        {/* SPORT LEADERBOARD */}
+
+        <div className="card section">
+
+          <h2>
+            🏅 Sport-wise Leaderboard
+          </h2>
+
+
+          <p className="muted">
+
+            View the standings for each
+            individual sport.
+
+          </p>
+
+
+          <label>
+
+            Select Sport
+
+            <select
+              value={selectedEvent}
+              onChange={(e) =>
+                setSelectedEvent(
+                  e.target.value
+                )
+              }
+            >
+
+              <option value="">
+                Select Sport
+              </option>
+
+
+              {events.map(
+                (event) => (
+
+                  <option
+                    key={event.id}
+                    value={event.id}
+                  >
+
+                    {getEventLabel(event)}
+
+                  </option>
+
+                )
+              )}
+
+            </select>
+
+          </label>
+
+
+          {selectedEventData && (
+
+            <div
+              style={{
+                marginTop: "18px"
+              }}
+            >
+
+              <h3>
+
+                {selectedEventData.gender}
+                {" · "}
+                {selectedEventData.name}
+
+              </h3>
+
+
+              <p className="muted">
+
+                {selectedEventData.category}
+
+              </p>
+
+
+              {sportLeaderboard.map(
+                (club, index) => (
+
+                  <div
+                    className="rank"
+                    key={club}
+                  >
+
+                    <span>
+
+                      {index === 0 &&
+                      sportPoints[club] > 0
+                        ? "🥇"
+                        : index === 1 &&
+                          sportPoints[club] > 0
+                        ? "🥈"
+                        : index === 2 &&
+                          sportPoints[club] > 0
+                        ? "🥉"
+                        : index + 1}
+
+                    </span>
+
+
+                    <b>
+
+                      {club}
+
+                    </b>
+
+
+                    <strong>
+
+                      {sportPoints[club] || 0}
+
+                    </strong>
+
+                  </div>
+
+                )
+              )}
+
+            </div>
+
           )}
 
         </div>
@@ -453,6 +775,7 @@ export default function Home() {
           <h2>
             Points System
           </h2>
+
 
           <div className="rules">
 
@@ -468,6 +791,7 @@ export default function Home() {
 
             </div>
 
+
             <div>
 
               <b>
@@ -479,6 +803,7 @@ export default function Home() {
               </span>
 
             </div>
+
 
             <div>
 
@@ -505,7 +830,10 @@ export default function Home() {
             Events
           </h2>
 
-          {Object.entries(eventGroups).map(
+
+          {Object.entries(
+            eventGroups
+          ).map(
             ([group, sports]) => (
 
               <div
@@ -517,6 +845,7 @@ export default function Home() {
                   {group}
                 </h3>
 
+
                 <div className="pills">
 
                   {sports.map(
@@ -525,7 +854,9 @@ export default function Home() {
                       <span
                         key={sport}
                       >
+
                         {sport}
+
                       </span>
 
                     )
@@ -540,8 +871,11 @@ export default function Home() {
 
         </div>
 
+
       </section>
 
     </main>
+
   );
+
 }
