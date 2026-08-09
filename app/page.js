@@ -12,15 +12,13 @@ function normalize(value) {
 }
 
 function isCompleted(status) {
-  const s = normalize(status);
-
   return [
     "completed",
     "complete",
     "finished",
     "final",
     "result",
-  ].includes(s);
+  ].includes(normalize(status));
 }
 
 function isCricketEvent(event) {
@@ -49,10 +47,6 @@ function isFootballEvent(event) {
   );
 }
 
-/* =========================================================
-   CRICKET OVERS
-========================================================= */
-
 function cricketOversToDecimal(value) {
   if (
     value === null ||
@@ -71,26 +65,15 @@ function cricketOversToDecimal(value) {
 
   const parts = text.split(".");
 
-  const completedOvers =
-    Number(parts[0]) || 0;
+  const overs = Number(parts[0]) || 0;
+  const balls = Number(parts[1]) || 0;
 
-  const balls =
-    Number(parts[1]) || 0;
+  if (balls < 0 || balls > 5) {
+    return overs;
+  }
 
-  const safeBalls =
-    balls >= 0 && balls <= 5
-      ? balls
-      : 0;
-
-  return (
-    completedOvers +
-    safeBalls / 6
-  );
+  return overs + balls / 6;
 }
-
-/* =========================================================
-   SCORE PARSER
-========================================================= */
 
 function parseScoreString(score) {
   if (
@@ -107,61 +90,46 @@ function parseScoreString(score) {
 
   const text = String(score).trim();
 
-  const cricketMatch =
-    text.match(
-      /^(\d+)\s*\/\s*(\d+)?(?:\s*\(([\d.]+)\s*ov\))?/i
-    );
+  const cricketMatch = text.match(
+    /^(\d+)\s*\/\s*(\d+)?(?:\s*\(([\d.]+)\s*ov\))?/i
+  );
 
   if (cricketMatch) {
     return {
-      value:
-        Number(cricketMatch[1]) || 0,
-
-      secondary:
-        Number(cricketMatch[2]) || 0,
-
-      overs:
-        cricketOversToDecimal(
-          cricketMatch[3]
-        ),
+      value: Number(cricketMatch[1]) || 0,
+      secondary: Number(cricketMatch[2]) || 0,
+      overs: cricketOversToDecimal(
+        cricketMatch[3]
+      ),
     };
   }
 
-  const dashMatch =
-    text.match(
-      /^(\d+(?:\.\d+)?)\s*[-:]\s*(\d+(?:\.\d+)?)$/
-    );
+  const dashMatch = text.match(
+    /^(\d+(?:\.\d+)?)\s*[-:]\s*(\d+(?:\.\d+)?)$/
+  );
 
   if (dashMatch) {
     return {
-      value:
-        Number(dashMatch[1]) || 0,
-
-      secondary:
-        Number(dashMatch[2]) || 0,
-
+      value: Number(dashMatch[1]) || 0,
+      secondary: Number(dashMatch[2]) || 0,
       overs: 0,
     };
   }
 
   const numberMatch =
-    text.match(
-      /-?\d+(?:\.\d+)?/
-    );
+    text.match(/-?\d+(?:\.\d+)?/);
 
   return {
-    value:
-      numberMatch
-        ? Number(numberMatch[0]) || 0
-        : 0,
-
+    value: numberMatch
+      ? Number(numberMatch[0]) || 0
+      : 0,
     secondary: 0,
     overs: 0,
   };
 }
 
 /* =========================================================
-   CRICKET DATA
+   CRICKET
 ========================================================= */
 
 function getCricketInnings(match, side) {
@@ -182,12 +150,7 @@ function getCricketInnings(match, side) {
   ) {
     return {
       runs: Number(runs) || 0,
-
-      overs:
-        cricketOversToDecimal(
-          overs
-        ),
-
+      overs: cricketOversToDecimal(overs),
       rawOvers: overs,
     };
   }
@@ -210,20 +173,6 @@ function getCricketInnings(match, side) {
 function getCricketScore(match, side) {
   if (!match) return "—";
 
-  const innings =
-    getCricketInnings(
-      match,
-      side
-    );
-
-  if (
-    innings.runs === 0 &&
-    !match?.score_a &&
-    !match?.score_b
-  ) {
-    return "—";
-  }
-
   const original =
     side === "a"
       ? match?.score_a
@@ -233,14 +182,18 @@ function getCricketScore(match, side) {
     return original;
   }
 
-  return String(
-    innings.runs
-  );
-}
+  const innings =
+    getCricketInnings(
+      match,
+      side
+    );
 
-/* =========================================================
-   GENERAL SCORE
-========================================================= */
+  if (!innings.runs) {
+    return "—";
+  }
+
+  return String(innings.runs);
+}
 
 function getMatchScore(match, side) {
   if (!match) return "—";
@@ -288,16 +241,13 @@ function getStoredMatchPoints(
         ];
 
   for (const key of keys) {
-    const value =
-      match?.[key];
+    const value = match?.[key];
 
     if (
       value !== null &&
       value !== undefined &&
       value !== "" &&
-      !Number.isNaN(
-        Number(value)
-      )
+      !Number.isNaN(Number(value))
     ) {
       return Number(value);
     }
@@ -341,21 +291,15 @@ function getMatchPoints(
 
   const clubId =
     side === "a"
-      ? Number(
-          match?.club_a_id
-        )
-      : Number(
-          match?.club_b_id
-        );
+      ? Number(match?.club_a_id)
+      : Number(match?.club_b_id);
 
   if (
     winnerId &&
     clubId &&
     winnerId === clubId
   ) {
-    return football
-      ? 3
-      : 2;
+    return football ? 3 : 2;
   }
 
   if (!winnerId) {
@@ -470,131 +414,68 @@ export default function Home() {
         .order("position"),
     ]);
 
-    const {
-      data: eventData,
-      error: eventError,
-    } = eventResponse;
-
-    const {
-      data: clubData,
-      error: clubError,
-    } = clubResponse;
-
-    const {
-      data: matchData,
-      error: matchError,
-    } = matchResponse;
-
-    const {
-      data: resultData,
-      error: resultError,
-    } = resultResponse;
-
-    if (eventError) {
+    if (eventResponse.error) {
       console.error(
-        "Events error:",
-        eventError
+        eventResponse.error
       );
-
       setMsg(
-        eventError.message
+        eventResponse.error.message
       );
     }
 
-    if (clubError) {
+    if (clubResponse.error) {
       console.error(
-        "Clubs error:",
-        clubError
+        clubResponse.error
       );
-
       setMsg(
-        clubError.message
+        clubResponse.error.message
       );
     }
 
-    if (matchError) {
+    if (matchResponse.error) {
       console.error(
-        "Matches error:",
-        matchError
+        matchResponse.error
       );
-
       setMsg(
-        matchError.message
+        matchResponse.error.message
       );
     }
 
-    if (resultError) {
+    if (resultResponse.error) {
       console.error(
-        "Results error:",
-        resultError
+        resultResponse.error
       );
-
       setMsg(
-        resultError.message
+        resultResponse.error.message
       );
     }
 
     setEvents(
-      eventData || []
+      eventResponse.data || []
     );
 
     setClubs(
-      clubData || []
+      clubResponse.data || []
     );
 
     setMatches(
-      matchData || []
+      matchResponse.data || []
     );
 
-    /* =====================================================
-       IMPORTANT OVERALL-STANDINGS FIX
+    /*
+      IMPORTANT:
 
-       We DO NOT trust the nested events object inside
-       event_results to decide whether an event is finalized.
+      Only finalized event_results
+      are loaded into `results`.
 
-       Instead:
-
-       1. Get the CURRENT events table.
-       2. Find events currently finalized.
-       3. Take ONLY event_results whose event_id belongs
-          to those currently finalized events.
-
-       Therefore:
-
-       Deleted event
-         -> not in eventData
-         -> cannot be in finalizedEventIds
-         -> contributes ZERO
-
-       Unfinalized event
-         -> not in finalizedEventIds
-         -> contributes ZERO
-
-       Only CURRENT finalized events count.
-    ===================================================== */
-
-    const finalizedEventIds =
-      new Set(
-        (eventData || [])
-          .filter(
-            (event) =>
-              event.result_finalized ===
-              true
-          )
-          .map(
-            (event) =>
-              Number(event.id)
-          )
-      );
+      This means unfinished/deleted/non-finalized
+      events cannot contribute to Overall Points.
+    */
 
     const finalizedResults =
-      (resultData || []).filter(
+      (resultResponse.data || []).filter(
         (result) =>
-          finalizedEventIds.has(
-            Number(
-              result.event_id
-            )
-          )
+          result.events?.result_finalized === true
       );
 
     setResults(
@@ -614,9 +495,7 @@ export default function Home() {
       );
 
     return () =>
-      clearInterval(
-        interval
-      );
+      clearInterval(interval);
   }, []);
 
   /* =======================================================
@@ -626,20 +505,15 @@ export default function Home() {
   const visibleMatches =
     useMemo(() => {
       if (
-        activeEvent ===
-        "all"
+        activeEvent === "all"
       ) {
         return matches;
       }
 
       return matches.filter(
         (match) =>
-          String(
-            match.event_id
-          ) ===
-          String(
-            activeEvent
-          )
+          String(match.event_id) ===
+          String(activeEvent)
       );
     }, [
       matches,
@@ -653,20 +527,15 @@ export default function Home() {
   const visibleResults =
     useMemo(() => {
       if (
-        activeEvent ===
-        "all"
+        activeEvent === "all"
       ) {
         return results;
       }
 
       return results.filter(
         (result) =>
-          String(
-            result.event_id
-          ) ===
-          String(
-            activeEvent
-          )
+          String(result.event_id) ===
+          String(activeEvent)
       );
     }, [
       results,
@@ -675,9 +544,6 @@ export default function Home() {
 
   /* =======================================================
      EVENT LEADERBOARDS
-
-     UNCHANGED:
-     ONLY COMPLETED MATCHES
   ======================================================= */
 
   const eventLeaderboards =
@@ -764,14 +630,10 @@ export default function Home() {
             );
 
           const A =
-            group.clubs[
-              clubA
-            ];
+            group.clubs[clubA];
 
           const B =
-            group.clubs[
-              clubB
-            ];
+            group.clubs[clubB];
 
           if (!A || !B) {
             return;
@@ -785,15 +647,13 @@ export default function Home() {
 
           if (
             winner &&
-            winner ===
-              clubA
+            winner === clubA
           ) {
             A.won += 1;
             B.lost += 1;
           } else if (
             winner &&
-            winner ===
-              clubB
+            winner === clubB
           ) {
             B.won += 1;
             A.lost += 1;
@@ -865,73 +725,62 @@ export default function Home() {
                 match.score_b
               );
 
-            const scoreA =
+            A.pointsFor +=
               parsedA.value;
 
-            const scoreB =
+            A.pointsAgainst +=
               parsedB.value;
 
-            A.pointsFor +=
-              scoreA;
-
-            A.pointsAgainst +=
-              scoreB;
-
             B.pointsFor +=
-              scoreB;
+              parsedB.value;
 
             B.pointsAgainst +=
-              scoreA;
+              parsedA.value;
           }
         }
       );
 
-      Object.values(
-        groups
-      ).forEach(
-        (group) => {
-          Object.values(
-            group.clubs
-          ).forEach(
-            (club) => {
-              club.goalDifference =
-                club.goalsFor -
-                club.goalsAgainst;
+      Object.values(groups)
+        .forEach(
+          (group) => {
+            Object.values(
+              group.clubs
+            ).forEach(
+              (club) => {
+                club.goalDifference =
+                  club.goalsFor -
+                  club.goalsAgainst;
 
-              club.pointsDifference =
-                club.pointsFor -
-                club.pointsAgainst;
+                club.pointsDifference =
+                  club.pointsFor -
+                  club.pointsAgainst;
 
-              if (
-                club.oversFor >
-                  0 &&
-                club.oversAgainst >
-                  0
-              ) {
-                club.nrr =
-                  club.runsFor /
-                    club.oversFor -
-                  club.runsAgainst /
-                    club.oversAgainst;
-              } else {
-                club.nrr = 0;
+                if (
+                  club.oversFor > 0 &&
+                  club.oversAgainst > 0
+                ) {
+                  club.nrr =
+                    club.runsFor /
+                      club.oversFor -
+                    club.runsAgainst /
+                      club.oversAgainst;
+                } else {
+                  club.nrr = 0;
+                }
+
+                if (
+                  Math.abs(
+                    club.nrr
+                  ) < 0.000001
+                ) {
+                  club.nrr = 0;
+                }
               }
+            );
+          }
+        );
 
-              if (
-                Math.abs(
-                  club.nrr
-                ) < 0.000001
-              ) {
-                club.nrr = 0;
-              }
-            }
-          );
-        }
-      );
-
-      return Object.values(
-        groups
-      )
+      return Object.values(groups)
         .map(
           (group) => {
             const cricket =
@@ -950,8 +799,7 @@ export default function Home() {
               )
                 .filter(
                   (club) =>
-                    club.played >
-                    0
+                    club.played > 0
                 )
                 .sort(
                   (a, b) => {
@@ -969,9 +817,8 @@ export default function Home() {
                       cricket &&
                       Math.abs(
                         b.nrr -
-                          a.nrr
-                      ) >
-                        0.000001
+                        a.nrr
+                      ) > 0.000001
                     ) {
                       return (
                         b.nrr -
@@ -982,7 +829,7 @@ export default function Home() {
                     if (
                       football &&
                       b.goalDifference !==
-                        a.goalDifference
+                      a.goalDifference
                     ) {
                       return (
                         b.goalDifference -
@@ -994,7 +841,7 @@ export default function Home() {
                       !cricket &&
                       !football &&
                       b.pointsDifference !==
-                        a.pointsDifference
+                      a.pointsDifference
                     ) {
                       return (
                         b.pointsDifference -
@@ -1028,23 +875,15 @@ export default function Home() {
           }
         )
         .filter(
-          (group) => {
-            if (
-              activeEvent ===
-              "all"
-            ) {
-              return true;
-            }
-
-            return (
-              String(
-                group.event.id
-              ) ===
+          (group) =>
+            activeEvent ===
+              "all" ||
+            String(
+              group.event.id
+            ) ===
               String(
                 activeEvent
               )
-            );
-          }
         );
     }, [
       events,
@@ -1055,8 +894,6 @@ export default function Home() {
 
   /* =======================================================
      CHAMPIONS
-
-     ONLY CURRENTLY FINALIZED EVENTS
   ======================================================= */
 
   const champions =
@@ -1076,15 +913,10 @@ export default function Home() {
         const result =
           results.find(
             (r) =>
-              Number(
-                r.event_id
-              ) ===
-                Number(
-                  event.id
-                ) &&
-              Number(
-                r.position
-              ) === 1
+              Number(r.event_id) ===
+                Number(event.id) &&
+              Number(r.position) ===
+                1
           );
 
         if (!result) {
@@ -1094,8 +926,7 @@ export default function Home() {
         list.push({
           event,
           result,
-          club:
-            result.clubs,
+          club: result.clubs,
         });
       }
 
@@ -1122,27 +953,29 @@ export default function Home() {
     ]);
 
   /* =======================================================
-     OVERALL CLUB POINTS
-
-     THIS IS THE MAIN FIX.
-
-     results has ALREADY been filtered during loadData()
-     using the CURRENT events table.
-
-     Therefore this section ONLY receives results from
-     CURRENTLY FINALIZED EVENTS.
-
-     No match data is used here.
-     No leaderboard data is used here.
+     ⭐ FIXED OVERALL STANDINGS
+     
+     THIS IS THE ONLY PART THAT SHOULD DETERMINE
+     THE OVERALL CLUB POINTS TABLE.
+     
+     It uses ONLY:
+     
+       event_results
+       
+     where:
+     
+       event.result_finalized === true
+     
+     Nothing else contributes.
   ======================================================= */
 
   const standings =
     useMemo(() => {
       const table = {};
 
-      /* -----------------------------------------------
-         Start every existing club at ZERO
-      ------------------------------------------------ */
+      /*
+        Start every existing club at ZERO.
+      */
 
       clubs.forEach(
         (club) => {
@@ -1151,9 +984,7 @@ export default function Home() {
           ] = {
             id: Number(club.id),
             name: club.name,
-
             points: 0,
-
             gold: 0,
             silver: 0,
             bronze: 0,
@@ -1161,28 +992,22 @@ export default function Home() {
         }
       );
 
-      /* -----------------------------------------------
-         Add ONLY CURRENT FINALIZED RESULTS
-      ------------------------------------------------ */
+      /*
+        Add ONLY finalized event results.
+      */
 
       results.forEach(
         (result) => {
           /*
             Extra safety check.
 
-            Even though loadData() already filters results,
-            we check the nested event one more time.
+            Even though `results` is already filtered,
+            check again here so an accidentally stale
+            result cannot enter the table.
           */
 
           if (
-            !result.events
-          ) {
-            return;
-          }
-
-          if (
-            result.events
-              .result_finalized !==
+            result.events?.result_finalized !==
             true
           ) {
             return;
@@ -1198,8 +1023,8 @@ export default function Home() {
           }
 
           /*
-            If club isn't currently in the clubs table,
-            create it from the result.
+            If club somehow isn't in the clubs table,
+            create it using the joined name.
           */
 
           if (
@@ -1207,14 +1032,10 @@ export default function Home() {
           ) {
             table[clubId] = {
               id: clubId,
-
               name:
-                result.clubs
-                  ?.name ||
+                result.clubs?.name ||
                 "Unknown Club",
-
               points: 0,
-
               gold: 0,
               silver: 0,
               bronze: 0,
@@ -1222,12 +1043,9 @@ export default function Home() {
           }
 
           /*
-            POINTS
+            IMPORTANT:
 
-            Only the points stored in event_results
-            are added.
-
-            Match points are NOT used.
+            Convert points explicitly to Number.
           */
 
           const points =
@@ -1236,19 +1054,11 @@ export default function Home() {
             );
 
           if (
-            Number.isFinite(
-              points
-            )
+            Number.isFinite(points)
           ) {
-            table[
-              clubId
-            ].points +=
+            table[clubId].points +=
               points;
           }
-
-          /*
-            MEDALS
-          */
 
           const position =
             Number(
@@ -1258,32 +1068,25 @@ export default function Home() {
           if (
             position === 1
           ) {
-            table[
-              clubId
-            ].gold += 1;
+            table[clubId].gold += 1;
           }
 
           if (
             position === 2
           ) {
-            table[
-              clubId
-            ].silver += 1;
+            table[clubId].silver += 1;
           }
 
           if (
             position === 3
           ) {
-            table[
-              clubId
-            ].bronze += 1;
+            table[clubId].bronze += 1;
           }
         }
       );
 
       /*
         Sort:
-
         1. Points
         2. Gold
         3. Silver
@@ -1336,7 +1139,7 @@ export default function Home() {
     ]);
 
   /* =======================================================
-     GROUPED FINALIZED RESULTS
+     GROUPED RESULTS
   ======================================================= */
 
   const groupedResults =
@@ -1346,8 +1149,9 @@ export default function Home() {
       visibleResults.forEach(
         (result) => {
           if (
-            !result.events
-              ?.result_finalized
+            result.events
+              ?.result_finalized !==
+            true
           ) {
             return;
           }
@@ -1381,9 +1185,11 @@ export default function Home() {
       visibleResults,
     ]);
 
-  /* =========================================================
+  /* =======================================================
      RENDER
-  ========================================================= */
+     
+     UI BELOW IS KEPT THE SAME.
+  ======================================================= */
 
   return (
     <>
@@ -1399,7 +1205,6 @@ export default function Home() {
 
         body {
           margin: 0;
-
           font-family:
             Inter,
             system-ui,
@@ -1417,7 +1222,6 @@ export default function Home() {
             );
 
           color: #ffffff;
-
           min-height: 100vh;
         }
 
@@ -1447,24 +1251,13 @@ export default function Home() {
           padding: 18px 6%;
 
           background:
-            rgba(
-              7,
-              4,
-              14,
-              0.88
-            );
+            rgba(7,4,14,0.88);
 
-          backdrop-filter:
-            blur(18px);
+          backdrop-filter: blur(18px);
 
           border-bottom:
             1px solid
-            rgba(
-              255,
-              255,
-              255,
-              0.09
-            );
+            rgba(255,255,255,0.09);
         }
 
         .logo {
@@ -1479,17 +1272,11 @@ export default function Home() {
 
         .adminLink {
           padding: 10px 16px;
-
           border-radius: 999px;
 
           border:
             1px solid
-            rgba(
-              255,
-              255,
-              255,
-              0.15
-            );
+            rgba(255,255,255,0.15);
 
           color: #ddd;
 
@@ -1499,12 +1286,7 @@ export default function Home() {
 
         .adminLink:hover {
           background:
-            rgba(
-              255,
-              255,
-              255,
-              0.08
-            );
+            rgba(255,255,255,0.08);
         }
 
         .hero {
@@ -1524,21 +1306,11 @@ export default function Home() {
           border-radius: 999px;
 
           background:
-            rgba(
-              190,
-              105,
-              255,
-              0.13
-            );
+            rgba(190,105,255,0.13);
 
           border:
             1px solid
-            rgba(
-              207,
-              145,
-              255,
-              0.28
-            );
+            rgba(207,145,255,0.28);
 
           color: #e8caff;
 
@@ -1546,7 +1318,6 @@ export default function Home() {
           font-weight: 800;
 
           letter-spacing: 1px;
-
           text-transform: uppercase;
         }
 
@@ -1555,14 +1326,9 @@ export default function Home() {
             20px 0 10px;
 
           font-size:
-            clamp(
-              42px,
-              9vw,
-              88px
-            );
+            clamp(42px,9vw,88px);
 
           line-height: 0.95;
-
           letter-spacing: -3px;
 
           background:
@@ -1573,36 +1339,26 @@ export default function Home() {
               #ffffff
             );
 
-          -webkit-background-clip:
-            text;
-
+          -webkit-background-clip: text;
           color: transparent;
         }
 
         .hero p {
           max-width: 650px;
-
-          margin:
-            20px auto 0;
+          margin: 20px auto 0;
 
           color: #aaa2b6;
 
           font-size: 17px;
-
           line-height: 1.7;
         }
 
         .container {
           width:
-            min(
-              1200px,
-              92%
-            );
+            min(1200px,92%);
 
           margin: 0 auto;
-
-          padding-bottom:
-            80px;
+          padding-bottom: 80px;
         }
 
         .eventBar {
@@ -1615,8 +1371,7 @@ export default function Home() {
             6px 2px
             20px;
 
-          scrollbar-width:
-            none;
+          scrollbar-width: none;
         }
 
         .eventBar::-webkit-scrollbar {
@@ -1629,25 +1384,14 @@ export default function Home() {
           padding:
             11px 17px;
 
-          border-radius:
-            999px;
+          border-radius: 999px;
 
           border:
             1px solid
-            rgba(
-              255,
-              255,
-              255,
-              0.12
-            );
+            rgba(255,255,255,0.12);
 
           background:
-            rgba(
-              255,
-              255,
-              255,
-              0.045
-            );
+            rgba(255,255,255,0.045);
 
           color: #aaa;
 
@@ -1668,31 +1412,18 @@ export default function Home() {
           color: white;
 
           border-color:
-            rgba(
-              255,
-              255,
-              255,
-              0.2
-            );
+            rgba(255,255,255,0.2);
 
           box-shadow:
             0 8px 30px
-            rgba(
-              130,
-              50,
-              230,
-              0.25
-            );
+            rgba(130,50,230,0.25);
         }
 
         .tabs {
           display: grid;
 
           grid-template-columns:
-            repeat(
-              5,
-              1fr
-            );
+            repeat(5,1fr);
 
           gap: 8px;
 
@@ -1705,21 +1436,11 @@ export default function Home() {
           border-radius: 14px;
 
           background:
-            rgba(
-              255,
-              255,
-              255,
-              0.045
-            );
+            rgba(255,255,255,0.045);
 
           border:
             1px solid
-            rgba(
-              255,
-              255,
-              255,
-              0.07
-            );
+            rgba(255,255,255,0.07);
         }
 
         .tab {
@@ -1730,8 +1451,7 @@ export default function Home() {
 
           border-radius: 10px;
 
-          background:
-            transparent;
+          background: transparent;
 
           color: #999;
 
@@ -1743,23 +1463,15 @@ export default function Home() {
 
         .tab.active {
           background:
-            rgba(
-              255,
-              255,
-              255,
-              0.1
-            );
+            rgba(255,255,255,0.1);
 
           color: white;
         }
 
         .sectionTitle {
           display: flex;
-
           align-items: center;
-
-          justify-content:
-            space-between;
+          justify-content: space-between;
 
           gap: 15px;
 
@@ -1770,58 +1482,34 @@ export default function Home() {
 
         .sectionTitle h2 {
           margin: 0;
-
           font-size: 24px;
         }
 
         .sectionTitle span {
           color: #777;
-
           font-size: 13px;
         }
 
         .card {
           padding: 22px;
-
-          margin-bottom:
-            15px;
+          margin-bottom: 15px;
 
           border-radius: 18px;
 
           background:
             linear-gradient(
               145deg,
-              rgba(
-                255,
-                255,
-                255,
-                0.065
-              ),
-              rgba(
-                255,
-                255,
-                255,
-                0.025
-              )
+              rgba(255,255,255,0.065),
+              rgba(255,255,255,0.025)
             );
 
           border:
             1px solid
-            rgba(
-              255,
-              255,
-              255,
-              0.09
-            );
+            rgba(255,255,255,0.09);
 
           box-shadow:
             0 15px 50px
-            rgba(
-              0,
-              0,
-              0,
-              0.18
-            );
+            rgba(0,0,0,0.18);
         }
 
         .matchCard {
@@ -1830,41 +1518,28 @@ export default function Home() {
 
         .matchTop {
           display: flex;
-
           align-items: center;
-
-          justify-content:
-            space-between;
+          justify-content: space-between;
 
           gap: 12px;
-
-          margin-bottom:
-            20px;
+          margin-bottom: 20px;
         }
 
         .eventName {
           color: #aaa;
-
           font-size: 12px;
           font-weight: 700;
         }
 
         .status {
-          padding:
-            5px 10px;
-
-          border-radius:
-            999px;
+          padding: 5px 10px;
+          border-radius: 999px;
 
           font-size: 10px;
-
           font-weight: 900;
 
-          letter-spacing:
-            0.7px;
-
-          text-transform:
-            uppercase;
+          letter-spacing: 0.7px;
+          text-transform: uppercase;
         }
 
         .status-final,
@@ -1872,24 +1547,14 @@ export default function Home() {
         .status-complete,
         .status-finished {
           background:
-            rgba(
-              100,
-              220,
-              130,
-              0.12
-            );
+            rgba(100,220,130,0.12);
 
           color: #7af59b;
         }
 
         .status-live {
           background:
-            rgba(
-              255,
-              65,
-              95,
-              0.13
-            );
+            rgba(255,65,95,0.13);
 
           color: #ff7188;
 
@@ -1899,12 +1564,7 @@ export default function Home() {
 
         .status-upcoming {
           background:
-            rgba(
-              255,
-              190,
-              80,
-              0.12
-            );
+            rgba(255,190,80,0.12);
 
           color: #ffc75c;
         }
@@ -1919,43 +1579,32 @@ export default function Home() {
           display: grid;
 
           grid-template-columns:
-            1fr
-            auto
-            1fr;
+            1fr auto 1fr;
 
-          align-items:
-            center;
+          align-items: center;
 
           gap: 15px;
         }
 
         .team {
           display: flex;
-
-          flex-direction:
-            column;
-
+          flex-direction: column;
           gap: 7px;
         }
 
         .team.right {
           text-align: right;
-
-          align-items:
-            flex-end;
+          align-items: flex-end;
         }
 
         .teamName {
           font-size: 17px;
-
           font-weight: 850;
         }
 
         .score {
           color: #d5b5ff;
-
           font-size: 22px;
-
           font-weight: 900;
         }
 
@@ -1965,135 +1614,83 @@ export default function Home() {
 
         .vs {
           color: #5f5867;
-
           font-size: 12px;
-
           font-weight: 900;
         }
 
         .matchMeta {
           margin-top: 18px;
-
           padding-top: 14px;
 
           border-top:
             1px solid
-            rgba(
-              255,
-              255,
-              255,
-              0.06
-            );
+            rgba(255,255,255,0.06);
 
           color: #777;
 
           font-size: 11px;
-
           text-align: center;
         }
 
         .leaderboardCard {
-          margin-bottom:
-            25px;
-
+          margin-bottom: 25px;
           overflow: hidden;
 
-          border-radius:
-            20px;
+          border-radius: 20px;
 
           background:
             linear-gradient(
               145deg,
-              rgba(
-                255,
-                255,
-                255,
-                0.065
-              ),
-              rgba(
-                255,
-                255,
-                255,
-                0.025
-              )
+              rgba(255,255,255,0.065),
+              rgba(255,255,255,0.025)
             );
 
           border:
             1px solid
-            rgba(
-              255,
-              255,
-              255,
-              0.09
-            );
+            rgba(255,255,255,0.09);
         }
 
         .leaderboardHeader {
           display: flex;
-
-          align-items:
-            center;
-
-          justify-content:
-            space-between;
+          align-items: center;
+          justify-content: space-between;
 
           gap: 15px;
 
           padding: 22px;
 
           background:
-            rgba(
-              255,
-              255,
-              255,
-              0.035
-            );
+            rgba(255,255,255,0.035);
 
           border-bottom:
             1px solid
-            rgba(
-              255,
-              255,
-              255,
-              0.07
-            );
+            rgba(255,255,255,0.07);
         }
 
         .leaderboardTitle {
           font-size: 19px;
-
           font-weight: 900;
         }
 
         .leaderboardSubtitle {
           margin-top: 5px;
-
           color: #777;
-
           font-size: 11px;
         }
 
         .matchCount {
           flex-shrink: 0;
 
-          padding:
-            7px 11px;
+          padding: 7px 11px;
 
-          border-radius:
-            999px;
+          border-radius: 999px;
 
           background:
-            rgba(
-              170,
-              80,
-              255,
-              0.12
-            );
+            rgba(170,80,255,0.12);
 
           color: #d3a7ff;
 
           font-size: 10px;
-
           font-weight: 900;
         }
 
@@ -2102,23 +1699,16 @@ export default function Home() {
         }
 
         .leaderboardTable table {
-          min-width:
-            900px;
+          min-width: 900px;
         }
 
         .leaderboardTable tr:first-child td {
           background:
-            rgba(
-              255,
-              211,
-              100,
-              0.035
-            );
+            rgba(255,211,100,0.035);
         }
 
         .leaderRank {
           font-weight: 950;
-
           color: #777;
         }
 
@@ -2128,9 +1718,7 @@ export default function Home() {
 
         .leaderPoints {
           color: #d3a7ff;
-
           font-weight: 950;
-
           font-size: 17px;
         }
 
@@ -2168,10 +1756,7 @@ export default function Home() {
           grid-template-columns:
             repeat(
               auto-fit,
-              minmax(
-                260px,
-                1fr
-              )
+              minmax(260px,1fr)
             );
 
           gap: 16px;
@@ -2179,49 +1764,27 @@ export default function Home() {
 
         .championCard {
           position: relative;
-
           overflow: hidden;
 
           padding: 28px;
 
-          border-radius:
-            22px;
+          border-radius: 22px;
 
           background:
             radial-gradient(
               circle at top right,
-              rgba(
-                255,
-                194,
-                72,
-                0.16
-              ),
+              rgba(255,194,72,0.16),
               transparent 45%
             ),
             linear-gradient(
               145deg,
-              rgba(
-                255,
-                255,
-                255,
-                0.08
-              ),
-              rgba(
-                255,
-                255,
-                255,
-                0.025
-              )
+              rgba(255,255,255,0.08),
+              rgba(255,255,255,0.025)
             );
 
           border:
             1px solid
-            rgba(
-              255,
-              210,
-              100,
-              0.2
-            );
+            rgba(255,210,100,0.2);
         }
 
         .trophy {
@@ -2234,20 +1797,16 @@ export default function Home() {
           color: #d2a5ff;
 
           font-size: 11px;
-
           font-weight: 900;
 
           letter-spacing: 2px;
-
-          text-transform:
-            uppercase;
+          text-transform: uppercase;
         }
 
         .championName {
           margin-top: 8px;
 
           font-size: 26px;
-
           font-weight: 950;
         }
 
@@ -2255,7 +1814,6 @@ export default function Home() {
           margin-top: 7px;
 
           color: #89818f;
-
           font-size: 13px;
         }
 
@@ -2264,24 +1822,16 @@ export default function Home() {
 
           margin-top: 16px;
 
-          padding:
-            6px 10px;
+          padding: 6px 10px;
 
-          border-radius:
-            999px;
+          border-radius: 999px;
 
           background:
-            rgba(
-              80,
-              210,
-              120,
-              0.1
-            );
+            rgba(80,210,120,0.1);
 
           color: #77e69a;
 
           font-size: 10px;
-
           font-weight: 900;
         }
 
@@ -2291,10 +1841,7 @@ export default function Home() {
           grid-template-columns:
             repeat(
               auto-fit,
-              minmax(
-                250px,
-                1fr
-              )
+              minmax(250px,1fr)
             );
 
           gap: 15px;
@@ -2303,25 +1850,14 @@ export default function Home() {
         .podiumCard {
           padding: 22px;
 
-          border-radius:
-            18px;
+          border-radius: 18px;
 
           background:
-            rgba(
-              255,
-              255,
-              255,
-              0.04
-            );
+            rgba(255,255,255,0.04);
 
           border:
             1px solid
-            rgba(
-              255,
-              255,
-              255,
-              0.07
-            );
+            rgba(255,255,255,0.07);
         }
 
         .podiumPosition {
@@ -2332,7 +1868,6 @@ export default function Home() {
           margin-top: 10px;
 
           font-size: 19px;
-
           font-weight: 850;
         }
 
@@ -2340,7 +1875,6 @@ export default function Home() {
           margin-top: 5px;
 
           color: #888;
-
           font-size: 12px;
         }
 
@@ -2350,53 +1884,38 @@ export default function Home() {
           color: #d2a5ff;
 
           font-size: 13px;
-
           font-weight: 850;
         }
 
         .tableWrap {
           overflow-x: auto;
 
-          border-radius:
-            18px;
+          border-radius: 18px;
 
           border:
             1px solid
-            rgba(
-              255,
-              255,
-              255,
-              0.08
-            );
+            rgba(255,255,255,0.08);
         }
 
         table {
           width: 100%;
 
-          border-collapse:
-            collapse;
+          border-collapse: collapse;
 
-          min-width:
-            620px;
+          min-width: 620px;
         }
 
         th {
           padding: 14px;
 
           background:
-            rgba(
-              255,
-              255,
-              255,
-              0.045
-            );
+            rgba(255,255,255,0.045);
 
           color: #777;
 
           font-size: 10px;
 
-          text-transform:
-            uppercase;
+          text-transform: uppercase;
 
           letter-spacing: 1px;
 
@@ -2404,102 +1923,68 @@ export default function Home() {
         }
 
         td {
-          padding:
-            17px 14px;
+          padding: 17px 14px;
 
           border-top:
             1px solid
-            rgba(
-              255,
-              255,
-              255,
-              0.055
-            );
+            rgba(255,255,255,0.055);
 
           font-size: 14px;
         }
 
         .rank {
           color: #777;
-
           font-weight: 900;
         }
 
         .points {
           color: #d3a7ff;
-
           font-weight: 950;
         }
 
         .empty {
-          padding:
-            55px 20px;
-
-          text-align:
-            center;
-
+          padding: 55px 20px;
+          text-align: center;
           color: #777;
         }
 
         .emptyIcon {
           font-size: 38px;
-
-          margin-bottom:
-            10px;
+          margin-bottom: 10px;
         }
 
         footer {
-          padding:
-            40px 6%;
+          padding: 40px 6%;
 
           border-top:
             1px solid
-            rgba(
-              255,
-              255,
-              255,
-              0.06
-            );
+            rgba(255,255,255,0.06);
 
-          text-align:
-            center;
+          text-align: center;
 
           color: #555;
-
           font-size: 12px;
         }
 
-        @media (
-          max-width: 800px
-        ) {
+        @media (max-width:800px) {
           .tabs {
             grid-template-columns:
-              repeat(
-                2,
-                1fr
-              );
+              repeat(2,1fr);
           }
         }
 
-        @media (
-          max-width: 650px
-        ) {
+        @media (max-width:650px) {
           header {
-            padding:
-              15px 5%;
+            padding: 15px 5%;
           }
 
           .logo {
             font-size: 19px;
-
-            letter-spacing:
-              2px;
+            letter-spacing: 2px;
           }
 
           .adminLink {
-            padding:
-              8px 12px;
-
+            padding: 8px 12px;
             font-size: 10px;
           }
 
@@ -2510,13 +1995,11 @@ export default function Home() {
           }
 
           .hero h1 {
-            font-size:
-              54px;
+            font-size: 54px;
           }
 
           .hero p {
-            font-size:
-              14px;
+            font-size: 14px;
           }
 
           .container {
@@ -2544,11 +2027,8 @@ export default function Home() {
           }
 
           .sectionTitle {
-            align-items:
-              flex-start;
-
-            flex-direction:
-              column;
+            align-items: flex-start;
+            flex-direction: column;
           }
         }
 
@@ -2556,15 +2036,10 @@ export default function Home() {
 
       <div className="page">
 
-        {/* HEADER */}
-
         <header>
-
           <div className="logo">
             EUPHORIA{" "}
-            <span>
-              2026
-            </span>
+            <span>2026</span>
           </div>
 
           <a
@@ -2573,10 +2048,7 @@ export default function Home() {
           >
             ADMIN
           </a>
-
         </header>
-
-        {/* HERO */}
 
         <section className="hero">
 
@@ -2598,25 +2070,18 @@ export default function Home() {
 
         </section>
 
-        {/* MAIN */}
-
         <main className="container">
-
-          {/* EVENT FILTER */}
 
           <div className="eventBar">
 
             <button
               className={
-                activeEvent ===
-                "all"
+                activeEvent === "all"
                   ? "eventButton active"
                   : "eventButton"
               }
               onClick={() =>
-                setActiveEvent(
-                  "all"
-                )
+                setActiveEvent("all")
               }
             >
               All Events
@@ -2625,24 +2090,18 @@ export default function Home() {
             {events.map(
               (event) => (
                 <button
-                  key={
-                    event.id
-                  }
+                  key={event.id}
                   className={
                     String(
                       activeEvent
                     ) ===
-                    String(
-                      event.id
-                    )
+                    String(event.id)
                       ? "eventButton active"
                       : "eventButton"
                   }
                   onClick={() =>
                     setActiveEvent(
-                      String(
-                        event.id
-                      )
+                      String(event.id)
                     )
                   }
                 >
@@ -2655,93 +2114,48 @@ export default function Home() {
 
           </div>
 
-          {/* TABS */}
-
           <div className="tabs">
 
-            <button
-              className={
-                activeTab ===
-                "matches"
-                  ? "tab active"
-                  : "tab"
-              }
-              onClick={() =>
-                setActiveTab(
-                  "matches"
-                )
-              }
-            >
-              🏟️ Matches
-            </button>
-
-            <button
-              className={
-                activeTab ===
-                "leaderboard"
-                  ? "tab active"
-                  : "tab"
-              }
-              onClick={() =>
-                setActiveTab(
-                  "leaderboard"
-                )
-              }
-            >
-              📈 Leaderboard
-            </button>
-
-            <button
-              className={
-                activeTab ===
-                "champions"
-                  ? "tab active"
-                  : "tab"
-              }
-              onClick={() =>
-                setActiveTab(
-                  "champions"
-                )
-              }
-            >
-              🏆 Champions
-            </button>
-
-            <button
-              className={
-                activeTab ===
-                "results"
-                  ? "tab active"
-                  : "tab"
-              }
-              onClick={() =>
-                setActiveTab(
-                  "results"
-                )
-              }
-            >
-              🥇 Results
-            </button>
-
-            <button
-              className={
-                activeTab ===
-                "standings"
-                  ? "tab active"
-                  : "tab"
-              }
-              onClick={() =>
-                setActiveTab(
-                  "standings"
-                )
-              }
-            >
-              📊 Overall Points
-            </button>
+            {[
+              [
+                "matches",
+                "🏟️ Matches",
+              ],
+              [
+                "leaderboard",
+                "📈 Leaderboard",
+              ],
+              [
+                "champions",
+                "🏆 Champions",
+              ],
+              [
+                "results",
+                "🥇 Results",
+              ],
+              [
+                "standings",
+                "📊 Overall Points",
+              ],
+            ].map(
+              ([key, label]) => (
+                <button
+                  key={key}
+                  className={
+                    activeTab === key
+                      ? "tab active"
+                      : "tab"
+                  }
+                  onClick={() =>
+                    setActiveTab(key)
+                  }
+                >
+                  {label}
+                </button>
+              )
+            )}
 
           </div>
-
-          {/* MESSAGE */}
 
           {msg && (
             <div className="card">
@@ -2749,24 +2163,18 @@ export default function Home() {
             </div>
           )}
 
-          {/* LOADING */}
-
           {loading ? (
             <div className="empty">
-
               <div className="emptyIcon">
                 ⏳
               </div>
 
               Loading EUPHORIA...
-
             </div>
           ) : (
             <>
 
-              {/* =================================================
-                  MATCHES
-              ================================================= */}
+              {/* MATCHES */}
 
               {activeTab ===
                 "matches" && (
@@ -2783,12 +2191,9 @@ export default function Home() {
                         visibleMatches.length
                       }{" "}
                       match
-                      {
-                        visibleMatches.length !==
-                        1
-                          ? "es"
-                          : ""
-                      }
+                      {visibleMatches.length !== 1
+                        ? "es"
+                        : ""}
                     </span>
 
                   </div>
@@ -2796,14 +2201,12 @@ export default function Home() {
                   {visibleMatches.length ===
                   0 ? (
                     <div className="empty card">
-
                       <div className="emptyIcon">
                         🏟️
                       </div>
 
                       No matches
                       available yet.
-
                     </div>
                   ) : (
                     visibleMatches.map(
@@ -2833,9 +2236,7 @@ export default function Home() {
                         return (
                           <div
                             className="card matchCard"
-                            key={
-                              match.id
-                            }
+                            key={match.id}
                           >
 
                             <div className="matchTop">
@@ -2865,9 +2266,7 @@ export default function Home() {
                                   "-"
                                 )}`}
                               >
-                                {
-                                  match.status
-                                }
+                                {match.status}
                               </div>
 
                             </div>
@@ -2887,8 +2286,7 @@ export default function Home() {
                                   }
                                 >
                                   {
-                                    match
-                                      .club_a
+                                    match.club_a
                                       ?.name
                                   }
                                 </div>
@@ -2903,9 +2301,7 @@ export default function Home() {
                                       : "score"
                                   }
                                 >
-                                  {
-                                    scoreA
-                                  }
+                                  {scoreA}
                                 </div>
 
                               </div>
@@ -2927,8 +2323,7 @@ export default function Home() {
                                   }
                                 >
                                   {
-                                    match
-                                      .club_b
+                                    match.club_b
                                       ?.name
                                   }
                                 </div>
@@ -2943,9 +2338,7 @@ export default function Home() {
                                       : "score"
                                   }
                                 >
-                                  {
-                                    scoreB
-                                  }
+                                  {scoreB}
                                 </div>
 
                               </div>
@@ -2981,9 +2374,7 @@ export default function Home() {
                 </section>
               )}
 
-              {/* =================================================
-                  EVENT LEADERBOARD
-              ================================================= */}
+              {/* LEADERBOARD */}
 
               {activeTab ===
                 "leaderboard" && (
@@ -3005,14 +2396,8 @@ export default function Home() {
                   {eventLeaderboards.length ===
                   0 ? (
                     <div className="empty card">
-
-                      <div className="emptyIcon">
-                        📈
-                      </div>
-
                       No events
                       available.
-
                     </div>
                   ) : (
                     eventLeaderboards.map(
@@ -3030,34 +2415,27 @@ export default function Home() {
 
                               <div className="leaderboardTitle">
                                 {
-                                  group
-                                    .event
+                                  group.event
                                     .gender
                                 }
                                 {" · "}
                                 {
-                                  group
-                                    .event
+                                  group.event
                                     .name
                                 }
                               </div>
 
                               <div className="leaderboardSubtitle">
-
                                 {
-                                  group
-                                    .event
+                                  group.event
                                     .category
                                 }
-
                                 {" · "}
-
                                 {group.cricket
                                   ? "Cricket points + NRR"
                                   : group.football
                                   ? "Football points + Goal Difference"
                                   : "Match points + Points Difference"}
-
                               </div>
 
                             </div>
@@ -3074,10 +2452,8 @@ export default function Home() {
                           {group.leaderboard.length ===
                           0 ? (
                             <div className="empty">
-
                               No completed
                               matches yet.
-
                             </div>
                           ) : (
                             <div className="leaderboardTable">
@@ -3085,87 +2461,36 @@ export default function Home() {
                               <table>
 
                                 <thead>
-
                                   <tr>
-
-                                    <th>
-                                      Rank
-                                    </th>
-
-                                    <th>
-                                      Club
-                                    </th>
-
-                                    <th>
-                                      P
-                                    </th>
-
-                                    <th>
-                                      W
-                                    </th>
-
-                                    <th>
-                                      T
-                                    </th>
-
-                                    <th>
-                                      L
-                                    </th>
+                                    <th>Rank</th>
+                                    <th>Club</th>
+                                    <th>P</th>
+                                    <th>W</th>
+                                    <th>T</th>
+                                    <th>L</th>
 
                                     {group.cricket ? (
                                       <>
-                                        <th>
-                                          Runs
-                                          For
-                                        </th>
-
-                                        <th>
-                                          Runs
-                                          Against
-                                        </th>
-
-                                        <th>
-                                          NRR
-                                        </th>
+                                        <th>Runs For</th>
+                                        <th>Runs Against</th>
+                                        <th>NRR</th>
                                       </>
                                     ) : group.football ? (
                                       <>
-                                        <th>
-                                          Goals
-                                          For
-                                        </th>
-
-                                        <th>
-                                          Goals
-                                          Against
-                                        </th>
-
-                                        <th>
-                                          GD
-                                        </th>
+                                        <th>Goals For</th>
+                                        <th>Goals Against</th>
+                                        <th>GD</th>
                                       </>
                                     ) : (
                                       <>
-                                        <th>
-                                          PF
-                                        </th>
-
-                                        <th>
-                                          PA
-                                        </th>
-
-                                        <th>
-                                          PD
-                                        </th>
+                                        <th>PF</th>
+                                        <th>PA</th>
+                                        <th>PD</th>
                                       </>
                                     )}
 
-                                    <th>
-                                      Points
-                                    </th>
-
+                                    <th>Points</th>
                                   </tr>
-
                                 </thead>
 
                                 <tbody>
@@ -3192,82 +2517,59 @@ export default function Home() {
 
                                           <td
                                             className={
-                                              index ===
-                                              0
+                                              index === 0
                                                 ? "leaderRank goldRank"
-                                                : index ===
-                                                  1
+                                                : index === 1
                                                 ? "leaderRank silverRank"
-                                                : index ===
-                                                  2
+                                                : index === 2
                                                 ? "leaderRank bronzeRank"
                                                 : "leaderRank"
                                             }
                                           >
-                                            {index ===
-                                            0
+                                            {index === 0
                                               ? "🥇"
-                                              : index ===
-                                                1
+                                              : index === 1
                                               ? "🥈"
-                                              : index ===
-                                                2
+                                              : index === 2
                                               ? "🥉"
-                                              : index +
-                                                1}
+                                              : index + 1}
                                           </td>
 
                                           <td className="leaderClub">
-                                            {
-                                              club.name
-                                            }
+                                            {club.name}
                                           </td>
 
                                           <td>
-                                            {
-                                              club.played
-                                            }
+                                            {club.played}
                                           </td>
 
                                           <td>
-                                            {
-                                              club.won
-                                            }
+                                            {club.won}
                                           </td>
 
                                           <td>
-                                            {
-                                              club.drawn
-                                            }
+                                            {club.drawn}
                                           </td>
 
                                           <td>
-                                            {
-                                              club.lost
-                                            }
+                                            {club.lost}
                                           </td>
 
                                           {group.cricket ? (
                                             <>
                                               <td className="metric">
-                                                {
-                                                  club.runsFor
-                                                }
+                                                {club.runsFor}
                                               </td>
 
                                               <td className="metric">
-                                                {
-                                                  club.runsAgainst
-                                                }
+                                                {club.runsAgainst}
                                               </td>
 
                                               <td
                                                 className={`metric ${
-                                                  club.nrr >
-                                                  0
+                                                  club.nrr > 0
                                                     ? "positive"
-                                                    : club.nrr <
-                                                      0
+                                                    : club.nrr < 0
                                                     ? "negative"
                                                     : "neutral"
                                                 }`}
@@ -3280,77 +2582,57 @@ export default function Home() {
                                           ) : group.football ? (
                                             <>
                                               <td className="metric">
-                                                {
-                                                  club.goalsFor
-                                                }
+                                                {club.goalsFor}
                                               </td>
 
                                               <td className="metric">
-                                                {
-                                                  club.goalsAgainst
-                                                }
+                                                {club.goalsAgainst}
                                               </td>
 
                                               <td
                                                 className={`metric ${
-                                                  difference >
-                                                  0
+                                                  difference > 0
                                                     ? "positive"
-                                                    : difference <
-                                                      0
+                                                    : difference < 0
                                                     ? "negative"
                                                     : "neutral"
                                                 }`}
                                               >
-                                                {difference >
-                                                0
+                                                {difference > 0
                                                   ? "+"
                                                   : ""}
-                                                {
-                                                  difference
-                                                }
+                                                {difference}
                                               </td>
                                             </>
                                           ) : (
                                             <>
                                               <td className="metric">
-                                                {
-                                                  club.pointsFor
-                                                }
+                                                {club.pointsFor}
                                               </td>
 
                                               <td className="metric">
-                                                {
-                                                  club.pointsAgainst
-                                                }
+                                                {club.pointsAgainst}
                                               </td>
 
                                               <td
                                                 className={`metric ${
-                                                  difference >
-                                                  0
+                                                  difference > 0
                                                     ? "positive"
-                                                    : difference <
-                                                      0
+                                                    : difference < 0
                                                     ? "negative"
                                                     : "neutral"
                                                 }`}
                                               >
-                                                {difference >
-                                                0
+                                                {difference > 0
                                                   ? "+"
                                                   : ""}
-                                                {
-                                                  difference
-                                                }
+                                                {difference}
                                               </td>
                                             </>
                                           )}
 
                                           <td className="leaderPoints">
-                                            {
-                                              club.points
-                                            }
+                                            {club.points}
                                           </td>
 
                                         </tr>
@@ -3373,9 +2655,7 @@ export default function Home() {
                 </section>
               )}
 
-              {/* =================================================
-                  CHAMPIONS
-              ================================================= */}
+              {/* CHAMPIONS */}
 
               {activeTab ===
                 "champions" && (
@@ -3388,8 +2668,7 @@ export default function Home() {
                     </h2>
 
                     <span>
-                      Finalized events
-                      only
+                      Finalized events only
                     </span>
 
                   </div>
@@ -3439,28 +2718,24 @@ export default function Home() {
 
                             <div className="championName">
                               {
-                                item
-                                  .club
+                                item.club
                                   ?.name
                               }
                             </div>
 
                             <div className="championEvent">
                               {
-                                item
-                                  .event
+                                item.event
                                   .gender
                               }
                               {" · "}
                               {
-                                item
-                                  .event
+                                item.event
                                   .name
                               }
                               {" · "}
                               {
-                                item
-                                  .event
+                                item.event
                                   .category
                               }
                             </div>
@@ -3480,9 +2755,7 @@ export default function Home() {
                 </section>
               )}
 
-              {/* =================================================
-                  RESULTS
-              ================================================= */}
+              {/* RESULTS */}
 
               {activeTab ===
                 "results" && (
@@ -3491,13 +2764,11 @@ export default function Home() {
                   <div className="sectionTitle">
 
                     <h2>
-                      🥇 Finalized
-                      Results
+                      🥇 Finalized Results
                     </h2>
 
                     <span>
-                      Official results
-                      only
+                      Official results only
                     </span>
 
                   </div>
@@ -3532,14 +2803,12 @@ export default function Home() {
 
                             <h2>
                               {
-                                group
-                                  .event
+                                group.event
                                   .gender
                               }
                               {" · "}
                               {
-                                group
-                                  .event
+                                group.event
                                   .name
                               }
                             </h2>
@@ -3556,10 +2825,7 @@ export default function Home() {
                               ...group.results,
                             ]
                               .sort(
-                                (
-                                  a,
-                                  b
-                                ) =>
+                                (a,b) =>
                                   Number(
                                     a.position
                                   ) -
@@ -3581,29 +2847,25 @@ export default function Home() {
                                     <div className="podiumPosition">
                                       {Number(
                                         result.position
-                                      ) ===
-                                      1
+                                      ) === 1
                                         ? "🥇"
                                         : Number(
                                             result.position
-                                          ) ===
-                                          2
+                                          ) === 2
                                         ? "🥈"
                                         : "🥉"}
                                     </div>
 
                                     <div className="podiumClub">
                                       {
-                                        result
-                                          .clubs
+                                        result.clubs
                                           ?.name
                                       }
                                     </div>
 
                                     <div className="podiumEvent">
                                       {
-                                        group
-                                          .event
+                                        group.event
                                           .category
                                       }
                                     </div>
@@ -3630,9 +2892,7 @@ export default function Home() {
                 </section>
               )}
 
-              {/* =================================================
-                  OVERALL CLUB POINTS
-              ================================================= */}
+              {/* ⭐ OVERALL POINTS */}
 
               {activeTab ===
                 "standings" && (
@@ -3641,13 +2901,11 @@ export default function Home() {
                   <div className="sectionTitle">
 
                     <h2>
-                      📊 Overall Club
-                      Points
+                      📊 Overall Club Points
                     </h2>
 
                     <span>
-                      Current finalized
-                      results only
+                      Finalized results only
                     </span>
 
                   </div>
@@ -3659,31 +2917,12 @@ export default function Home() {
                       <thead>
 
                         <tr>
-
-                          <th>
-                            Rank
-                          </th>
-
-                          <th>
-                            Club
-                          </th>
-
-                          <th>
-                            🥇
-                          </th>
-
-                          <th>
-                            🥈
-                          </th>
-
-                          <th>
-                            🥉
-                          </th>
-
-                          <th>
-                            Points
-                          </th>
-
+                          <th>Rank</th>
+                          <th>Club</th>
+                          <th>🥇</th>
+                          <th>🥈</th>
+                          <th>🥉</th>
+                          <th>Points</th>
                         </tr>
 
                       </thead>
@@ -3702,42 +2941,29 @@ export default function Home() {
                             >
 
                               <td className="rank">
-                                {
-                                  index +
-                                  1
-                                }
+                                {index + 1}
                               </td>
 
                               <td>
                                 <strong>
-                                  {
-                                    club.name
-                                  }
+                                  {club.name}
                                 </strong>
                               </td>
 
                               <td>
-                                {
-                                  club.gold
-                                }
+                                {club.gold}
                               </td>
 
                               <td>
-                                {
-                                  club.silver
-                                }
+                                {club.silver}
                               </td>
 
                               <td>
-                                {
-                                  club.bronze
-                                }
+                                {club.bronze}
                               </td>
 
                               <td className="points">
-                                {
-                                  club.points
-                                }
+                                {club.points}
                               </td>
 
                             </tr>
@@ -3752,14 +2978,13 @@ export default function Home() {
 
                   {standings.every(
                     (club) =>
-                      club.points ===
-                      0
+                      club.points === 0
                   ) && (
                     <div className="empty">
-                      Overall club
-                      points will appear
-                      after event results
-                      are finalized.
+                      Overall club points
+                      will appear after
+                      event results are
+                      finalized.
                     </div>
                   )}
 
@@ -3770,8 +2995,6 @@ export default function Home() {
           )}
 
         </main>
-
-        {/* FOOTER */}
 
         <footer>
 
@@ -3790,4 +3013,4 @@ export default function Home() {
       </div>
     </>
   );
-               }
+}
