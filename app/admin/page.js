@@ -20,6 +20,16 @@ function isCricketEvent(event) {
   );
 }
 
+function isDoublesEvent(event) {
+  if (!event) return false;
+
+  const category = String(event.category || "")
+    .trim()
+    .toLowerCase();
+
+  return category.includes("double");
+}
+
 function isCricketMatch(match, events) {
   const event = events.find(
     (e) => Number(e.id) === Number(match.event_id)
@@ -54,11 +64,7 @@ function validCricketOvers(value) {
 }
 
 function displayCricketScore(runs, wickets, overs) {
-  if (
-    runs === null ||
-    runs === undefined ||
-    runs === ""
-  ) {
+  if (runs === null || runs === undefined || runs === "") {
     return "";
   }
 
@@ -132,6 +138,11 @@ export default function Admin() {
     score_a: "",
     score_b: "",
 
+    player_a1: "",
+    player_a2: "",
+    player_b1: "",
+    player_b2: "",
+
     status: "Upcoming",
 
     batting_first_club_id: "",
@@ -169,7 +180,7 @@ export default function Admin() {
   });
 
   /* =======================================================
-     CHECK AUTHENTICATION
+     CHECK AUTH
   ======================================================= */
 
   async function checkAdmin() {
@@ -195,16 +206,11 @@ export default function Admin() {
       .select("id,email,created_at")
       .ilike("email", currentUser.email);
 
-    if (
-      error ||
-      !data ||
-      data.length === 0
-    ) {
+    if (error || !data || data.length === 0) {
       setUser(null);
       setIsAdmin(false);
       setAdminUsers([]);
       setAuthChecking(false);
-
       return;
     }
 
@@ -372,10 +378,6 @@ export default function Admin() {
     setLoading(false);
   }
 
-  /* =======================================================
-     LOAD DATA ONLY AFTER ADMIN AUTH
-  ======================================================= */
-
   useEffect(() => {
     if (isAdmin) {
       load();
@@ -388,12 +390,14 @@ export default function Admin() {
 
   const selectedEvent = events.find(
     (event) =>
-      String(event.id) ===
-      String(form.event_id)
+      String(event.id) === String(form.event_id)
   );
 
   const cricketSelected =
     isCricketEvent(selectedEvent);
+
+  const doublesSelected =
+    isDoublesEvent(selectedEvent);
 
   /* =======================================================
      LOGIN
@@ -406,9 +410,7 @@ export default function Admin() {
     setLoginMsg("");
     setMsg("");
 
-    const email = loginEmail
-      .trim()
-      .toLowerCase();
+    const email = loginEmail.trim().toLowerCase();
 
     const { error } =
       await supabase.auth.signInWithPassword({
@@ -464,9 +466,7 @@ export default function Admin() {
 
     setMsg("");
 
-    const email = newAdminEmail
-      .trim()
-      .toLowerCase();
+    const email = newAdminEmail.trim().toLowerCase();
 
     if (!email) {
       setMsg("Please enter an email address.");
@@ -480,15 +480,11 @@ export default function Admin() {
 
     const { error } = await supabase
       .from("admin_users")
-      .insert({
-        email,
-      });
+      .insert({ email });
 
     if (error) {
       if (error.code === "23505") {
-        setMsg(
-          "That email already has admin access."
-        );
+        setMsg("That email already has admin access.");
       } else {
         setMsg(error.message);
       }
@@ -497,10 +493,7 @@ export default function Admin() {
     }
 
     setNewAdminEmail("");
-
-    setMsg(
-      `✅ Admin access granted to ${email}`
-    );
+    setMsg(`✅ Admin access granted to ${email}`);
 
     await loadAdminUsers();
   }
@@ -510,9 +503,7 @@ export default function Admin() {
       email.toLowerCase() ===
       user?.email?.toLowerCase()
     ) {
-      setMsg(
-        "You cannot remove your own admin access."
-      );
+      setMsg("You cannot remove your own admin access.");
       return;
     }
 
@@ -532,9 +523,7 @@ export default function Admin() {
       return;
     }
 
-    setMsg(
-      `🗑️ Admin access removed from ${email}`
-    );
+    setMsg(`🗑️ Admin access removed from ${email}`);
 
     await loadAdminUsers();
   }
@@ -604,13 +593,8 @@ export default function Admin() {
       return;
     }
 
-    if (
-      form.club_a_id ===
-      form.club_b_id
-    ) {
-      setMsg(
-        "Club A and Club B must be different."
-      );
+    if (form.club_a_id === form.club_b_id) {
+      setMsg("Club A and Club B must be different.");
       return;
     }
 
@@ -620,17 +604,13 @@ export default function Admin() {
 
     if (cricketSelected) {
       if (!form.batting_first_club_id) {
-        setMsg(
-          "Please select which club batted first."
-        );
+        setMsg("Please select which club batted first.");
         return;
       }
 
       if (
-        form.batting_first_club_id !==
-          form.club_a_id &&
-        form.batting_first_club_id !==
-          form.club_b_id
+        form.batting_first_club_id !== form.club_a_id &&
+        form.batting_first_club_id !== form.club_b_id
       ) {
         setMsg("Invalid batting-first club.");
         return;
@@ -640,9 +620,7 @@ export default function Admin() {
         form.innings_a_runs === "" ||
         form.innings_b_runs === ""
       ) {
-        setMsg(
-          "Please enter runs for both innings."
-        );
+        setMsg("Please enter runs for both innings.");
         return;
       }
 
@@ -650,53 +628,30 @@ export default function Admin() {
         form.innings_a_overs === "" ||
         form.innings_b_overs === ""
       ) {
-        setMsg(
-          "Please enter overs for both innings."
-        );
+        setMsg("Please enter overs for both innings.");
         return;
       }
 
-      if (
-        !validCricketOvers(
-          form.innings_a_overs
-        )
-      ) {
-        setMsg(
-          "Invalid Club A overs. Example: 20 or 19.3"
-        );
+      if (!validCricketOvers(form.innings_a_overs)) {
+        setMsg("Invalid Club A overs. Example: 20 or 19.3");
         return;
       }
 
-      if (
-        !validCricketOvers(
-          form.innings_b_overs
-        )
-      ) {
-        setMsg(
-          "Invalid Club B overs. Example: 20 or 19.3"
-        );
+      if (!validCricketOvers(form.innings_b_overs)) {
+        setMsg("Invalid Club B overs. Example: 20 or 19.3");
         return;
       }
 
       if (
         form.allotted_overs !== "" &&
-        !validCricketOvers(
-          form.allotted_overs
-        )
+        !validCricketOvers(form.allotted_overs)
       ) {
-        setMsg(
-          "Invalid allotted overs. Example: 20"
-        );
+        setMsg("Invalid allotted overs. Example: 20");
         return;
       }
 
-      const runsA = Number(
-        form.innings_a_runs
-      );
-
-      const runsB = Number(
-        form.innings_b_runs
-      );
+      const runsA = Number(form.innings_a_runs);
+      const runsB = Number(form.innings_b_runs);
 
       let winner = null;
 
@@ -708,79 +663,111 @@ export default function Admin() {
         }
       }
 
-      const scoreA =
-        displayCricketScore(
-          form.innings_a_runs,
-          form.innings_a_wickets,
-          form.innings_a_overs
-        );
+      const scoreA = displayCricketScore(
+        form.innings_a_runs,
+        form.innings_a_wickets,
+        form.innings_a_overs
+      );
 
-      const scoreB =
-        displayCricketScore(
-          form.innings_b_runs,
-          form.innings_b_wickets,
-          form.innings_b_overs
-        );
+      const scoreB = displayCricketScore(
+        form.innings_b_runs,
+        form.innings_b_wickets,
+        form.innings_b_overs
+      );
 
-      const { error } =
-        await supabase
-          .from("matches")
-          .insert({
-            event_id:
-              Number(form.event_id),
+      const { error } = await supabase
+        .from("matches")
+        .insert({
+          event_id: Number(form.event_id),
+          club_a_id: Number(form.club_a_id),
+          club_b_id: Number(form.club_b_id),
 
-            club_a_id:
-              Number(form.club_a_id),
+          score_a: scoreA,
+          score_b: scoreB,
 
-            club_b_id:
-              Number(form.club_b_id),
+          status: form.status,
 
-            score_a: scoreA,
-            score_b: scoreB,
+          winner_club_id: winner,
 
-            status: form.status,
+          batting_first_club_id:
+            Number(form.batting_first_club_id),
 
-            winner_club_id: winner,
+          innings_a_runs:
+            Number(form.innings_a_runs),
 
-            batting_first_club_id:
-              Number(
-                form.batting_first_club_id
-              ),
+          innings_a_overs:
+            form.innings_a_overs,
 
-            innings_a_runs:
-              Number(
-                form.innings_a_runs
-              ),
+          innings_b_runs:
+            Number(form.innings_b_runs),
 
-            innings_a_overs:
-              form.innings_a_overs,
+          innings_b_overs:
+            form.innings_b_overs,
 
-            innings_b_runs:
-              Number(
-                form.innings_b_runs
-              ),
-
-            innings_b_overs:
-              form.innings_b_overs,
-
-            allotted_overs:
-              form.allotted_overs ||
-              null,
-          });
+          allotted_overs:
+            form.allotted_overs || null,
+        });
 
       if (error) {
         setMsg(error.message);
         return;
       }
 
-      setMsg(
-        "🏏 Cricket match created successfully."
-      );
-    } else {
-      /* ===================================================
-         NON-CRICKET
-      =================================================== */
+      setMsg("🏏 Cricket match created successfully.");
+    }
 
+    /* =====================================================
+       DOUBLES / MIXED DOUBLES
+    ===================================================== */
+
+    else if (doublesSelected) {
+      if (
+        !form.player_a1.trim() ||
+        !form.player_a2.trim() ||
+        !form.player_b1.trim() ||
+        !form.player_b2.trim()
+      ) {
+        setMsg("Please enter all 4 player names.");
+        return;
+      }
+
+      const playersA =
+        `${form.player_a1.trim()} + ${form.player_a2.trim()}`;
+
+      const playersB =
+        `${form.player_b1.trim()} + ${form.player_b2.trim()}`;
+
+      const { error } = await supabase
+        .from("matches")
+        .insert({
+          event_id: Number(form.event_id),
+
+          club_a_id: Number(form.club_a_id),
+
+          club_b_id: Number(form.club_b_id),
+
+          score_a: playersA,
+
+          score_b: playersB,
+
+          status: form.status,
+
+          winner_club_id: null,
+        });
+
+      if (error) {
+        setMsg(error.message);
+        return;
+      }
+
+      setMsg("👥 Doubles match created successfully.");
+    }
+
+    /* =====================================================
+       NORMAL EVENT
+    ===================================================== */
+
+    else {
       let winner = null;
 
       if (
@@ -788,62 +775,45 @@ export default function Admin() {
         form.score_a !== "" &&
         form.score_b !== ""
       ) {
-        const a = Number(
-          form.score_a
-        );
-
-        const b = Number(
-          form.score_b
-        );
+        const a = Number(form.score_a);
+        const b = Number(form.score_b);
 
         if (
           Number.isFinite(a) &&
           Number.isFinite(b)
         ) {
           if (a > b) {
-            winner = Number(
-              form.club_a_id
-            );
+            winner = Number(form.club_a_id);
           } else if (b > a) {
-            winner = Number(
-              form.club_b_id
-            );
+            winner = Number(form.club_b_id);
           }
         }
       }
 
-      const { error } =
-        await supabase
-          .from("matches")
-          .insert({
-            event_id:
-              Number(form.event_id),
+      const { error } = await supabase
+        .from("matches")
+        .insert({
+          event_id: Number(form.event_id),
 
-            club_a_id:
-              Number(form.club_a_id),
+          club_a_id: Number(form.club_a_id),
 
-            club_b_id:
-              Number(form.club_b_id),
+          club_b_id: Number(form.club_b_id),
 
-            score_a:
-              form.score_a || null,
+          score_a: form.score_a || null,
 
-            score_b:
-              form.score_b || null,
+          score_b: form.score_b || null,
 
-            status: form.status,
+          status: form.status,
 
-            winner_club_id: winner,
-          });
+          winner_club_id: winner,
+        });
 
       if (error) {
         setMsg(error.message);
         return;
       }
 
-      setMsg(
-        "✅ Match created successfully."
-      );
+      setMsg("✅ Match created successfully.");
     }
 
     setForm((old) => ({
@@ -854,6 +824,11 @@ export default function Admin() {
 
       score_a: "",
       score_b: "",
+
+      player_a1: "",
+      player_a2: "",
+      player_b1: "",
+      player_b2: "",
 
       batting_first_club_id: "",
 
@@ -878,11 +853,10 @@ export default function Admin() {
   async function updateMatch(id, patch) {
     setMsg("");
 
-    const { error } =
-      await supabase
-        .from("matches")
-        .update(patch)
-        .eq("id", id);
+    const { error } = await supabase
+      .from("matches")
+      .update(patch)
+      .eq("id", id);
 
     if (error) {
       setMsg(error.message);
@@ -898,9 +872,7 @@ export default function Admin() {
      SAVE CRICKET MATCH
   ======================================================= */
 
-  async function saveCricketMatch(
-    match
-  ) {
+  async function saveCricketMatch(match) {
     setMsg("");
 
     const runsA =
@@ -949,9 +921,7 @@ export default function Admin() {
       )?.value;
 
     if (!battingFirst) {
-      setMsg(
-        "Please select who batted first."
-      );
+      setMsg("Please select who batted first.");
       return;
     }
 
@@ -980,76 +950,129 @@ export default function Admin() {
     let winner = null;
 
     if (status === "Final") {
-      if (
-        Number(runsA) >
-        Number(runsB)
-      ) {
-        winner = Number(
-          match.club_a_id
-        );
-      } else if (
-        Number(runsB) >
-        Number(runsA)
-      ) {
-        winner = Number(
-          match.club_b_id
-        );
+      if (Number(runsA) > Number(runsB)) {
+        winner = Number(match.club_a_id);
+      } else if (Number(runsB) > Number(runsA)) {
+        winner = Number(match.club_b_id);
       }
     }
 
-    const scoreA =
-      displayCricketScore(
-        runsA,
-        wicketsA,
-        oversA
-      );
+    const scoreA = displayCricketScore(
+      runsA,
+      wicketsA,
+      oversA
+    );
 
-    const scoreB =
-      displayCricketScore(
-        runsB,
-        wicketsB,
-        oversB
-      );
+    const scoreB = displayCricketScore(
+      runsB,
+      wicketsB,
+      oversB
+    );
 
-    const { error } =
-      await supabase
-        .from("matches")
-        .update({
-          score_a: scoreA,
-          score_b: scoreB,
+    const { error } = await supabase
+      .from("matches")
+      .update({
+        score_a: scoreA,
+        score_b: scoreB,
 
-          status,
+        status,
 
-          winner_club_id: winner,
+        winner_club_id: winner,
 
-          batting_first_club_id:
-            Number(battingFirst),
+        batting_first_club_id:
+          Number(battingFirst),
 
-          innings_a_runs:
-            Number(runsA),
+        innings_a_runs:
+          Number(runsA),
 
-          innings_a_overs:
-            oversA,
+        innings_a_overs:
+          oversA,
 
-          innings_b_runs:
-            Number(runsB),
+        innings_b_runs:
+          Number(runsB),
 
-          innings_b_overs:
-            oversB,
+        innings_b_overs:
+          oversB,
 
-          allotted_overs:
-            allotted || null,
-        })
-        .eq("id", match.id);
+        allotted_overs:
+          allotted || null,
+      })
+      .eq("id", match.id);
 
     if (error) {
       setMsg(error.message);
       return;
     }
 
-    setMsg(
-      "🏏 Cricket match updated."
-    );
+    setMsg("🏏 Cricket match updated.");
+
+    await load();
+  }
+
+  /* =======================================================
+     SAVE DOUBLES MATCH
+  ======================================================= */
+
+  async function saveDoublesMatch(match) {
+    setMsg("");
+
+    const playerA1 =
+      document.getElementById(
+        `doubles-a1-${match.id}`
+      )?.value.trim() || "";
+
+    const playerA2 =
+      document.getElementById(
+        `doubles-a2-${match.id}`
+      )?.value.trim() || "";
+
+    const playerB1 =
+      document.getElementById(
+        `doubles-b1-${match.id}`
+      )?.value.trim() || "";
+
+    const playerB2 =
+      document.getElementById(
+        `doubles-b2-${match.id}`
+      )?.value.trim() || "";
+
+    const status =
+      document.getElementById(
+        `status-${match.id}`
+      )?.value || "Upcoming";
+
+    if (
+      !playerA1 ||
+      !playerA2 ||
+      !playerB1 ||
+      !playerB2
+    ) {
+      setMsg("Please enter all 4 player names.");
+      return;
+    }
+
+    const playersA =
+      `${playerA1} + ${playerA2}`;
+
+    const playersB =
+      `${playerB1} + ${playerB2}`;
+
+    const { error } = await supabase
+      .from("matches")
+      .update({
+        score_a: playersA,
+        score_b: playersB,
+        status,
+        winner_club_id: null,
+      })
+      .eq("id", match.id);
+
+    if (error) {
+      setMsg(error.message);
+      return;
+    }
+
+    setMsg("👥 Doubles match updated.");
 
     await load();
   }
@@ -1058,9 +1081,7 @@ export default function Admin() {
      SAVE NORMAL MATCH
   ======================================================= */
 
-  async function saveNormalMatch(
-    match
-  ) {
+  async function saveNormalMatch(match) {
     const scoreA =
       document.getElementById(
         `normal-score-a-${match.id}`
@@ -1091,26 +1112,19 @@ export default function Admin() {
         Number.isFinite(b)
       ) {
         if (a > b) {
-          winner = Number(
-            match.club_a_id
-          );
+          winner = Number(match.club_a_id);
         } else if (b > a) {
-          winner = Number(
-            match.club_b_id
-          );
+          winner = Number(match.club_b_id);
         }
       }
     }
 
-    await updateMatch(
-      match.id,
-      {
-        score_a: scoreA,
-        score_b: scoreB,
-        status,
-        winner_club_id: winner,
-      }
-    );
+    await updateMatch(match.id, {
+      score_a: scoreA,
+      score_b: scoreB,
+      status,
+      winner_club_id: winner,
+    });
   }
 
   /* =======================================================
@@ -1126,11 +1140,10 @@ export default function Admin() {
 
     setMsg("");
 
-    const { error } =
-      await supabase
-        .from("matches")
-        .delete()
-        .eq("id", id);
+    const { error } = await supabase
+      .from("matches")
+      .delete()
+      .eq("id", id);
 
     if (error) {
       setMsg(error.message);
@@ -1146,13 +1159,8 @@ export default function Admin() {
      POINTS
   ======================================================= */
 
-  function getPoints(
-    category,
-    position
-  ) {
-    const type = String(
-      category || ""
-    ).toLowerCase();
+  function getPoints(category, position) {
+    const type = String(category || "").toLowerCase();
 
     if (type.includes("team")) {
       return position === 1
@@ -1206,9 +1214,7 @@ export default function Admin() {
       resultForm.third,
     ];
 
-    if (
-      new Set(selected).size !== 3
-    ) {
+    if (new Set(selected).size !== 3) {
       setMsg(
         "1st, 2nd and 3rd must be different clubs."
       );
@@ -1228,61 +1234,30 @@ export default function Admin() {
 
     const rows = [
       {
-        event_id:
-          Number(resultForm.event_id),
-
-        club_id:
-          Number(resultForm.first),
-
+        event_id: Number(resultForm.event_id),
+        club_id: Number(resultForm.first),
         position: 1,
-
-        points:
-          getPoints(
-            event.category,
-            1
-          ),
+        points: getPoints(event.category, 1),
       },
-
       {
-        event_id:
-          Number(resultForm.event_id),
-
-        club_id:
-          Number(resultForm.second),
-
+        event_id: Number(resultForm.event_id),
+        club_id: Number(resultForm.second),
         position: 2,
-
-        points:
-          getPoints(
-            event.category,
-            2
-          ),
+        points: getPoints(event.category, 2),
       },
-
       {
-        event_id:
-          Number(resultForm.event_id),
-
-        club_id:
-          Number(resultForm.third),
-
+        event_id: Number(resultForm.event_id),
+        club_id: Number(resultForm.third),
         position: 3,
-
-        points:
-          getPoints(
-            event.category,
-            3
-          ),
+        points: getPoints(event.category, 3),
       },
     ];
 
-    const { error } =
-      await supabase
-        .from("event_results")
-        .upsert(rows, {
-          onConflict:
-            "event_id,position",
-        });
+    const { error } = await supabase
+      .from("event_results")
+      .upsert(rows, {
+        onConflict: "event_id,position",
+      });
 
     if (error) {
       setMsg(error.message);
@@ -1314,11 +1289,10 @@ export default function Admin() {
 
     if (!ok) return;
 
-    const { error } =
-      await supabase
-        .from("event_results")
-        .delete()
-        .eq("id", id);
+    const { error } = await supabase
+      .from("event_results")
+      .delete()
+      .eq("id", id);
 
     if (error) {
       setMsg(error.message);
@@ -1339,10 +1313,7 @@ export default function Admin() {
       <main>
         <section className="wrap admin">
           <div className="card">
-            <h2>
-              🔐 Checking admin access...
-            </h2>
-
+            <h2>🔐 Checking admin access...</h2>
             <p className="muted">
               Please wait.
             </p>
@@ -1361,9 +1332,7 @@ export default function Admin() {
       <main>
         <section className="wrap admin">
           <div className="card">
-            <h1>
-              🔐 EUPHORIA ADMIN
-            </h1>
+            <h1>🔐 EUPHORIA ADMIN</h1>
 
             <p className="muted">
               Sign in with an authorized
@@ -1378,9 +1347,7 @@ export default function Admin() {
                   type="email"
                   value={loginEmail}
                   onChange={(e) =>
-                    setLoginEmail(
-                      e.target.value
-                    )
+                    setLoginEmail(e.target.value)
                   }
                   placeholder="Enter your email"
                   required
@@ -1394,9 +1361,7 @@ export default function Admin() {
                   type="password"
                   value={loginPassword}
                   onChange={(e) =>
-                    setLoginPassword(
-                      e.target.value
-                    )
+                    setLoginPassword(e.target.value)
                   }
                   placeholder="Enter your password"
                   required
@@ -1453,9 +1418,7 @@ export default function Admin() {
             alignItems: "center",
           }}
         >
-          <a href="/">
-            PUBLIC SITE
-          </a>
+          <a href="/">PUBLIC SITE</a>
 
           <button onClick={logout}>
             🚪 Logout
@@ -1470,9 +1433,7 @@ export default function Admin() {
         ================================================= */}
 
         <div className="card">
-          <h2>
-            🔐 Admin Access
-          </h2>
+          <h2>🔐 Admin Access</h2>
 
           <p className="muted">
             Logged in as:
@@ -1486,9 +1447,7 @@ export default function Admin() {
             using their email address.
           </p>
 
-          <form
-            onSubmit={addAdminUser}
-          >
+          <form onSubmit={addAdminUser}>
             <label>
               Email Address
 
@@ -1496,9 +1455,7 @@ export default function Admin() {
                 type="email"
                 value={newAdminEmail}
                 onChange={(e) =>
-                  setNewAdminEmail(
-                    e.target.value
-                  )
+                  setNewAdminEmail(e.target.value)
                 }
                 placeholder="person@example.com"
                 required
@@ -1510,9 +1467,7 @@ export default function Admin() {
             </button>
           </form>
 
-          <h3>
-            Current Admins
-          </h3>
+          <h3>Current Admins</h3>
 
           {adminUsers.length === 0 ? (
             <p className="muted">
@@ -1524,9 +1479,7 @@ export default function Admin() {
                 className="adminMatch"
                 key={admin.id}
               >
-                <b>
-                  {admin.email}
-                </b>
+                <b>{admin.email}</b>
 
                 <small>
                   {admin.email.toLowerCase() ===
@@ -1539,10 +1492,8 @@ export default function Admin() {
                   user?.email?.toLowerCase() && (
                   <button
                     style={{
-                      background:
-                        "#b42336",
-                      borderColor:
-                        "#b42336",
+                      background: "#b42336",
+                      borderColor: "#b42336",
                     }}
                     onClick={() =>
                       removeAdminUser(
@@ -1564,13 +1515,10 @@ export default function Admin() {
         ================================================= */}
 
         <div className="card">
-          <h2>
-            ➕ Add Sport / Event
-          </h2>
+          <h2>➕ Add Sport / Event</h2>
 
           <p className="muted">
-            Add a new sport whenever
-            required.
+            Add a new sport whenever required.
           </p>
 
           <form onSubmit={addEvent}>
@@ -1578,15 +1526,12 @@ export default function Admin() {
               Sport / Event Name
 
               <input
-                value={
-                  eventForm.name
-                }
+                value={eventForm.name}
                 placeholder="Example: Chess"
                 onChange={(e) =>
                   setEventForm({
                     ...eventForm,
-                    name:
-                      e.target.value,
+                    name: e.target.value,
                   })
                 }
               />
@@ -1596,14 +1541,11 @@ export default function Admin() {
               Gender
 
               <select
-                value={
-                  eventForm.gender
-                }
+                value={eventForm.gender}
                 onChange={(e) =>
                   setEventForm({
                     ...eventForm,
-                    gender:
-                      e.target.value,
+                    gender: e.target.value,
                   })
                 }
               >
@@ -1625,14 +1567,11 @@ export default function Admin() {
               Category
 
               <select
-                value={
-                  eventForm.category
-                }
+                value={eventForm.category}
                 onChange={(e) =>
                   setEventForm({
                     ...eventForm,
-                    category:
-                      e.target.value,
+                    category: e.target.value,
                   })
                 }
               >
@@ -1665,13 +1604,10 @@ export default function Admin() {
         ================================================= */}
 
         <div className="card">
-          <h1>
-            Admin Dashboard
-          </h1>
+          <h1>Admin Dashboard</h1>
 
           <p className="muted">
-            Create matches and update
-            live scores.
+            Create matches and update live scores.
           </p>
 
           <form onSubmit={addMatch}>
@@ -1683,12 +1619,14 @@ export default function Admin() {
                 onChange={(e) =>
                   setForm({
                     ...form,
-                    event_id:
-                      e.target.value,
+                    event_id: e.target.value,
                     club_a_id: "",
                     club_b_id: "",
-                    batting_first_club_id:
-                      "",
+                    batting_first_club_id: "",
+                    player_a1: "",
+                    player_a2: "",
+                    player_b1: "",
+                    player_b2: "",
                   })
                 }
               >
@@ -1696,18 +1634,15 @@ export default function Admin() {
                   Select Event
                 </option>
 
-                {events.map(
-                  (event) => (
-                    <option
-                      key={event.id}
-                      value={event.id}
-                    >
-                      {event.gender} ·{" "}
-                      {event.name} ·{" "}
-                      {event.category}
-                    </option>
-                  )
-                )}
+                {events.map((event) => (
+                  <option
+                    key={event.id}
+                    value={event.id}
+                  >
+                    {event.gender} · {event.name} ·{" "}
+                    {event.category}
+                  </option>
+                ))}
               </select>
             </label>
 
@@ -1715,14 +1650,11 @@ export default function Admin() {
               Club A
 
               <select
-                value={
-                  form.club_a_id
-                }
+                value={form.club_a_id}
                 onChange={(e) =>
                   setForm({
                     ...form,
-                    club_a_id:
-                      e.target.value,
+                    club_a_id: e.target.value,
                   })
                 }
               >
@@ -1730,16 +1662,14 @@ export default function Admin() {
                   Select Club
                 </option>
 
-                {clubs.map(
-                  (club) => (
-                    <option
-                      key={club.id}
-                      value={club.id}
-                    >
-                      {club.name}
-                    </option>
-                  )
-                )}
+                {clubs.map((club) => (
+                  <option
+                    key={club.id}
+                    value={club.id}
+                  >
+                    {club.name}
+                  </option>
+                ))}
               </select>
             </label>
 
@@ -1747,14 +1677,11 @@ export default function Admin() {
               Club B
 
               <select
-                value={
-                  form.club_b_id
-                }
+                value={form.club_b_id}
                 onChange={(e) =>
                   setForm({
                     ...form,
-                    club_b_id:
-                      e.target.value,
+                    club_b_id: e.target.value,
                   })
                 }
               >
@@ -1762,48 +1689,38 @@ export default function Admin() {
                   Select Club
                 </option>
 
-                {clubs.map(
-                  (club) => (
-                    <option
-                      key={club.id}
-                      value={club.id}
-                    >
-                      {club.name}
-                    </option>
-                  )
-                )}
+                {clubs.map((club) => (
+                  <option
+                    key={club.id}
+                    value={club.id}
+                  >
+                    {club.name}
+                  </option>
+                ))}
               </select>
             </label>
 
             {/* =============================================
-                CRICKET FORM
+                CRICKET
             ============================================= */}
 
             {cricketSelected ? (
               <div
                 style={{
-                  marginTop:
-                    "20px",
-                  padding:
-                    "18px",
+                  marginTop: "20px",
+                  padding: "18px",
                   border:
                     "1px solid rgba(255,255,255,.15)",
-                  borderRadius:
-                    "12px",
+                  borderRadius: "12px",
                 }}
               >
-                <h3>
-                  🏏 Cricket Match
-                  Details
-                </h3>
+                <h3>🏏 Cricket Match Details</h3>
 
                 <label>
                   Who batted first?
 
                   <select
-                    value={
-                      form.batting_first_club_id
-                    }
+                    value={form.batting_first_club_id}
                     onChange={(e) =>
                       setForm({
                         ...form,
@@ -1813,45 +1730,30 @@ export default function Admin() {
                     }
                   >
                     <option value="">
-                      Select batting-first
-                      club
+                      Select batting-first club
                     </option>
 
                     {form.club_a_id && (
                       <option
-                        value={
-                          form.club_a_id
-                        }
+                        value={form.club_a_id}
                       >
                         {clubs.find(
                           (c) =>
-                            String(
-                              c.id
-                            ) ===
-                            String(
-                              form.club_a_id
-                            )
-                        )?.name ||
-                          "Club A"}
+                            String(c.id) ===
+                            String(form.club_a_id)
+                        )?.name || "Club A"}
                       </option>
                     )}
 
                     {form.club_b_id && (
                       <option
-                        value={
-                          form.club_b_id
-                        }
+                        value={form.club_b_id}
                       >
                         {clubs.find(
                           (c) =>
-                            String(
-                              c.id
-                            ) ===
-                            String(
-                              form.club_b_id
-                            )
-                        )?.name ||
-                          "Club B"}
+                            String(c.id) ===
+                            String(form.club_b_id)
+                        )?.name || "Club B"}
                       </option>
                     )}
                   </select>
@@ -1863,9 +1765,7 @@ export default function Admin() {
                   <input
                     type="text"
                     placeholder="Example: 20"
-                    value={
-                      form.allotted_overs
-                    }
+                    value={form.allotted_overs}
                     onChange={(e) =>
                       setForm({
                         ...form,
@@ -1876,9 +1776,7 @@ export default function Admin() {
                   />
                 </label>
 
-                <h4>
-                  Club A Innings
-                </h4>
+                <h4>Club A Innings</h4>
 
                 <label>
                   Runs
@@ -1886,9 +1784,7 @@ export default function Admin() {
                   <input
                     type="number"
                     min="0"
-                    value={
-                      form.innings_a_runs
-                    }
+                    value={form.innings_a_runs}
                     onChange={(e) =>
                       setForm({
                         ...form,
@@ -1906,9 +1802,7 @@ export default function Admin() {
                     type="number"
                     min="0"
                     max="10"
-                    value={
-                      form.innings_a_wickets
-                    }
+                    value={form.innings_a_wickets}
                     onChange={(e) =>
                       setForm({
                         ...form,
@@ -1925,9 +1819,7 @@ export default function Admin() {
                   <input
                     type="text"
                     placeholder="20 or 19.3"
-                    value={
-                      form.innings_a_overs
-                    }
+                    value={form.innings_a_overs}
                     onChange={(e) =>
                       setForm({
                         ...form,
@@ -1938,9 +1830,7 @@ export default function Admin() {
                   />
                 </label>
 
-                <h4>
-                  Club B Innings
-                </h4>
+                <h4>Club B Innings</h4>
 
                 <label>
                   Runs
@@ -1948,9 +1838,7 @@ export default function Admin() {
                   <input
                     type="number"
                     min="0"
-                    value={
-                      form.innings_b_runs
-                    }
+                    value={form.innings_b_runs}
                     onChange={(e) =>
                       setForm({
                         ...form,
@@ -1968,9 +1856,7 @@ export default function Admin() {
                     type="number"
                     min="0"
                     max="10"
-                    value={
-                      form.innings_b_wickets
-                    }
+                    value={form.innings_b_wickets}
                     onChange={(e) =>
                       setForm({
                         ...form,
@@ -1987,9 +1873,7 @@ export default function Admin() {
                   <input
                     type="text"
                     placeholder="20 or 19.3"
-                    value={
-                      form.innings_b_overs
-                    }
+                    value={form.innings_b_overs}
                     onChange={(e) =>
                       setForm({
                         ...form,
@@ -2000,44 +1884,136 @@ export default function Admin() {
                   />
                 </label>
               </div>
+            ) : doublesSelected ? (
+              /* =============================================
+                 DOUBLES / MIXED DOUBLES
+              ============================================= */
+
+              <div
+                style={{
+                  marginTop: "20px",
+                  padding: "18px",
+                  border:
+                    "1px solid rgba(255,255,255,.15)",
+                  borderRadius: "12px",
+                }}
+              >
+                <h3>👥 Doubles Match</h3>
+
+                <h4>
+                  {clubs.find(
+                    (c) =>
+                      String(c.id) ===
+                      String(form.club_a_id)
+                  )?.name || "Club A"}
+                </h4>
+
+                <label>
+                  Player 1
+
+                  <input
+                    value={form.player_a1}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        player_a1: e.target.value,
+                      })
+                    }
+                    placeholder="Enter Player 1"
+                    required
+                  />
+                </label>
+
+                <label>
+                  Player 2
+
+                  <input
+                    value={form.player_a2}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        player_a2: e.target.value,
+                      })
+                    }
+                    placeholder="Enter Player 2"
+                    required
+                  />
+                </label>
+
+                <h4>
+                  {clubs.find(
+                    (c) =>
+                      String(c.id) ===
+                      String(form.club_b_id)
+                  )?.name || "Club B"}
+                </h4>
+
+                <label>
+                  Player 1
+
+                  <input
+                    value={form.player_b1}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        player_b1: e.target.value,
+                      })
+                    }
+                    placeholder="Enter Player 1"
+                    required
+                  />
+                </label>
+
+                <label>
+                  Player 2
+
+                  <input
+                    value={form.player_b2}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        player_b2: e.target.value,
+                      })
+                    }
+                    placeholder="Enter Player 2"
+                    required
+                  />
+                </label>
+              </div>
             ) : (
-              <>
-                <div className="two">
-                  <label>
-                    Score A
+              /* =============================================
+                 NORMAL EVENT
+              ============================================= */
 
-                    <input
-                      value={
-                        form.score_a
-                      }
-                      onChange={(e) =>
-                        setForm({
-                          ...form,
-                          score_a:
-                            e.target.value,
-                        })
-                      }
-                    />
-                  </label>
+              <div className="two">
+                <label>
+                  Score A
 
-                  <label>
-                    Score B
+                  <input
+                    value={form.score_a}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        score_a: e.target.value,
+                      })
+                    }
+                  />
+                </label>
 
-                    <input
-                      value={
-                        form.score_b
-                      }
-                      onChange={(e) =>
-                        setForm({
-                          ...form,
-                          score_b:
-                            e.target.value,
-                        })
-                      }
-                    />
-                  </label>
-                </div>
-              </>
+                <label>
+                  Score B
+
+                  <input
+                    value={form.score_b}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        score_b: e.target.value,
+                      })
+                    }
+                  />
+                </label>
+              </div>
             )}
 
             <label>
@@ -2048,8 +2024,7 @@ export default function Admin() {
                 onChange={(e) =>
                   setForm({
                     ...form,
-                    status:
-                      e.target.value,
+                    status: e.target.value,
                   })
                 }
               >
@@ -2070,6 +2045,8 @@ export default function Admin() {
             <button type="submit">
               {cricketSelected
                 ? "🏏 Create Cricket Match"
+                : doublesSelected
+                ? "👥 Create Doubles Match"
                 : "Create Match"}
             </button>
           </form>
@@ -2090,25 +2067,18 @@ export default function Admin() {
         ================================================= */}
 
         <div className="card">
-          <h2>
-            🏆 Finalize Event Result
-          </h2>
+          <h2>🏆 Finalize Event Result</h2>
 
-          <form
-            onSubmit={finalizeResult}
-          >
+          <form onSubmit={finalizeResult}>
             <label>
               Event
 
               <select
-                value={
-                  resultForm.event_id
-                }
+                value={resultForm.event_id}
                 onChange={(e) =>
                   setResultForm({
                     ...resultForm,
-                    event_id:
-                      e.target.value,
+                    event_id: e.target.value,
                   })
                 }
               >
@@ -2116,18 +2086,15 @@ export default function Admin() {
                   Select Event
                 </option>
 
-                {events.map(
-                  (event) => (
-                    <option
-                      key={event.id}
-                      value={event.id}
-                    >
-                      {event.gender} ·{" "}
-                      {event.name} ·{" "}
-                      {event.category}
-                    </option>
-                  )
-                )}
+                {events.map((event) => (
+                  <option
+                    key={event.id}
+                    value={event.id}
+                  >
+                    {event.gender} · {event.name} ·{" "}
+                    {event.category}
+                  </option>
+                ))}
               </select>
             </label>
 
@@ -2135,14 +2102,11 @@ export default function Admin() {
               🥇 1st Place
 
               <select
-                value={
-                  resultForm.first
-                }
+                value={resultForm.first}
                 onChange={(e) =>
                   setResultForm({
                     ...resultForm,
-                    first:
-                      e.target.value,
+                    first: e.target.value,
                   })
                 }
               >
@@ -2150,16 +2114,14 @@ export default function Admin() {
                   Select Club
                 </option>
 
-                {clubs.map(
-                  (club) => (
-                    <option
-                      key={club.id}
-                      value={club.id}
-                    >
-                      {club.name}
-                    </option>
-                  )
-                )}
+                {clubs.map((club) => (
+                  <option
+                    key={club.id}
+                    value={club.id}
+                  >
+                    {club.name}
+                  </option>
+                ))}
               </select>
             </label>
 
@@ -2167,14 +2129,11 @@ export default function Admin() {
               🥈 2nd Place
 
               <select
-                value={
-                  resultForm.second
-                }
+                value={resultForm.second}
                 onChange={(e) =>
                   setResultForm({
                     ...resultForm,
-                    second:
-                      e.target.value,
+                    second: e.target.value,
                   })
                 }
               >
@@ -2182,16 +2141,14 @@ export default function Admin() {
                   Select Club
                 </option>
 
-                {clubs.map(
-                  (club) => (
-                    <option
-                      key={club.id}
-                      value={club.id}
-                    >
-                      {club.name}
-                    </option>
-                  )
-                )}
+                {clubs.map((club) => (
+                  <option
+                    key={club.id}
+                    value={club.id}
+                  >
+                    {club.name}
+                  </option>
+                ))}
               </select>
             </label>
 
@@ -2199,14 +2156,11 @@ export default function Admin() {
               🥉 3rd Place
 
               <select
-                value={
-                  resultForm.third
-                }
+                value={resultForm.third}
                 onChange={(e) =>
                   setResultForm({
                     ...resultForm,
-                    third:
-                      e.target.value,
+                    third: e.target.value,
                   })
                 }
               >
@@ -2214,22 +2168,19 @@ export default function Admin() {
                   Select Club
                 </option>
 
-                {clubs.map(
-                  (club) => (
-                    <option
-                      key={club.id}
-                      value={club.id}
-                    >
-                      {club.name}
-                    </option>
-                  )
-                )}
+                {clubs.map((club) => (
+                  <option
+                    key={club.id}
+                    value={club.id}
+                  >
+                    {club.name}
+                  </option>
+                ))}
               </select>
             </label>
 
             <button type="submit">
-              Finalize Result &
-              Award Points
+              Finalize Result & Award Points
             </button>
           </form>
         </div>
@@ -2239,9 +2190,7 @@ export default function Admin() {
         ================================================= */}
 
         <div className="card">
-          <h2>
-            Existing Matches
-          </h2>
+          <h2>Existing Matches</h2>
 
           {loading ? (
             <p>Loading...</p>
@@ -2250,280 +2199,305 @@ export default function Admin() {
               No matches yet.
             </p>
           ) : (
-            matches.map(
-              (match) => {
-                const cricket =
-                  isCricketMatch(
-                    match,
-                    events
-                  );
+            matches.map((match) => {
+              const cricket =
+                isCricketMatch(match, events);
 
-                return (
-                  <div
-                    className="adminMatch"
-                    key={match.id}
-                  >
-                    <b>
-                      {match.club_a
-                        ?.name ||
-                        "TBD"}
-                      {" vs "}
-                      {match.club_b
-                        ?.name ||
-                        "TBD"}
-                    </b>
+              const doubles =
+                isDoublesEvent(match.events);
 
-                    <small>
-                      {
-                        match.events
-                          ?.gender
-                      }
-                      {" · "}
-                      {
-                        match.events
-                          ?.name
-                      }
-                      {" · "}
-                      {
-                        match.events
-                          ?.category
-                      }
-                    </small>
+              return (
+                <div
+                  className="adminMatch"
+                  key={match.id}
+                >
+                  <b>
+                    {match.club_a?.name || "TBD"}
+                    {" vs "}
+                    {match.club_b?.name || "TBD"}
+                  </b>
 
-                    {cricket ? (
-                      <>
-                        <h4>
-                          🏏 Cricket
-                        </h4>
+                  <small>
+                    {match.events?.gender}
+                    {" · "}
+                    {match.events?.name}
+                    {" · "}
+                    {match.events?.category}
+                  </small>
 
-                        <label>
-                          Batting First
+                  {/* =======================================
+                      EXISTING CRICKET
+                  ======================================= */}
 
-                          <select
-                            id={`cricket-batting-first-${match.id}`}
-                            defaultValue={
-                              match.batting_first_club_id ||
-                              ""
-                            }
+                  {cricket ? (
+                    <>
+                      <h4>🏏 Cricket</h4>
+
+                      <label>
+                        Batting First
+
+                        <select
+                          id={`cricket-batting-first-${match.id}`}
+                          defaultValue={
+                            match.batting_first_club_id ||
+                            ""
+                          }
+                        >
+                          <option value="">
+                            Select
+                          </option>
+
+                          <option
+                            value={match.club_a_id}
                           >
-                            <option value="">
-                              Select
-                            </option>
+                            {match.club_a?.name}
+                          </option>
 
-                            <option
-                              value={
-                                match.club_a_id
-                              }
-                            >
-                              {
-                                match
-                                  .club_a
-                                  ?.name
-                              }
-                            </option>
+                          <option
+                            value={match.club_b_id}
+                          >
+                            {match.club_b?.name}
+                          </option>
+                        </select>
+                      </label>
 
-                            <option
-                              value={
-                                match.club_b_id
-                              }
-                            >
-                              {
-                                match
-                                  .club_b
-                                  ?.name
-                              }
-                            </option>
-                          </select>
-                        </label>
-
-                        <label>
-                          Allotted Overs
-
-                          <input
-                            id={`cricket-allotted-${match.id}`}
-                            defaultValue={
-                              match.allotted_overs ||
-                              ""
-                            }
-                            placeholder="20"
-                          />
-                        </label>
-
-                        <h4>
-                          {
-                            match
-                              .club_a
-                              ?.name
-                          }
-                        </h4>
-
-                        <label>
-                          Runs
-
-                          <input
-                            id={`cricket-runs-a-${match.id}`}
-                            type="number"
-                            min="0"
-                            defaultValue={
-                              match.innings_a_runs ??
-                              ""
-                            }
-                          />
-                        </label>
-
-                        <label>
-                          Wickets
-
-                          <input
-                            id={`cricket-wickets-a-${match.id}`}
-                            type="number"
-                            min="0"
-                            max="10"
-                            defaultValue={
-                              match.innings1_wickets ??
-                              ""
-                            }
-                          />
-                        </label>
-
-                        <label>
-                          Overs
-
-                          <input
-                            id={`cricket-overs-a-${match.id}`}
-                            defaultValue={
-                              match.innings_a_overs ??
-                              ""
-                            }
-                            placeholder="20 or 19.3"
-                          />
-                        </label>
-
-                        <h4>
-                          {
-                            match
-                              .club_b
-                              ?.name
-                          }
-                        </h4>
-
-                        <label>
-                          Runs
-
-                          <input
-                            id={`cricket-runs-b-${match.id}`}
-                            type="number"
-                            min="0"
-                            defaultValue={
-                              match.innings_b_runs ??
-                              ""
-                            }
-                          />
-                        </label>
-
-                        <label>
-                          Wickets
-
-                          <input
-                            id={`cricket-wickets-b-${match.id}`}
-                            type="number"
-                            min="0"
-                            max="10"
-                            defaultValue={
-                              match.innings2_wickets ??
-                              ""
-                            }
-                          />
-                        </label>
-
-                        <label>
-                          Overs
-
-                          <input
-                            id={`cricket-overs-b-${match.id}`}
-                            defaultValue={
-                              match.innings_b_overs ??
-                              ""
-                            }
-                            placeholder="20 or 19.3"
-                          />
-                        </label>
-                      </>
-                    ) : (
-                      <div className="two">
-                        <input
-                          id={`normal-score-a-${match.id}`}
-                          defaultValue={
-                            match.score_a ||
-                            ""
-                          }
-                          placeholder="Score A"
-                        />
+                      <label>
+                        Allotted Overs
 
                         <input
-                          id={`normal-score-b-${match.id}`}
+                          id={`cricket-allotted-${match.id}`}
                           defaultValue={
-                            match.score_b ||
-                            ""
+                            match.allotted_overs || ""
                           }
-                          placeholder="Score B"
+                          placeholder="20"
                         />
-                      </div>
-                    )}
+                      </label>
 
-                    <select
-                      id={`status-${match.id}`}
-                      defaultValue={
-                        match.status ||
-                        "Upcoming"
-                      }
-                    >
-                      <option value="Upcoming">
-                        Upcoming
-                      </option>
+                      <h4>
+                        {match.club_a?.name}
+                      </h4>
 
-                      <option value="Live">
-                        Live
-                      </option>
+                      <label>
+                        Runs
 
-                      <option value="Final">
-                        Final
-                      </option>
-                    </select>
+                        <input
+                          id={`cricket-runs-a-${match.id}`}
+                          type="number"
+                          min="0"
+                          defaultValue={
+                            match.innings_a_runs ?? ""
+                          }
+                        />
+                      </label>
 
-                    <button
-                      onClick={() =>
-                        cricket
-                          ? saveCricketMatch(
-                              match
-                            )
-                          : saveNormalMatch(
-                              match
-                            )
-                      }
-                    >
-                      💾 Save Match
-                    </button>
+                      <label>
+                        Wickets
 
-                    <button
-                      style={{
-                        background:
-                          "#b42336",
-                        borderColor:
-                          "#b42336",
-                      }}
-                      onClick={() =>
-                        deleteMatch(
-                          match.id
-                        )
-                      }
-                    >
-                      🗑️ Delete Match
-                    </button>
-                  </div>
-                );
-              }
-            )
+                        <input
+                          id={`cricket-wickets-a-${match.id}`}
+                          type="number"
+                          min="0"
+                          max="10"
+                          defaultValue={
+                            match.innings1_wickets ?? ""
+                          }
+                        />
+                      </label>
+
+                      <label>
+                        Overs
+
+                        <input
+                          id={`cricket-overs-a-${match.id}`}
+                          defaultValue={
+                            match.innings_a_overs ?? ""
+                          }
+                          placeholder="20 or 19.3"
+                        />
+                      </label>
+
+                      <h4>
+                        {match.club_b?.name}
+                      </h4>
+
+                      <label>
+                        Runs
+
+                        <input
+                          id={`cricket-runs-b-${match.id}`}
+                          type="number"
+                          min="0"
+                          defaultValue={
+                            match.innings_b_runs ?? ""
+                          }
+                        />
+                      </label>
+
+                      <label>
+                        Wickets
+
+                        <input
+                          id={`cricket-wickets-b-${match.id}`}
+                          type="number"
+                          min="0"
+                          max="10"
+                          defaultValue={
+                            match.innings2_wickets ?? ""
+                          }
+                        />
+                      </label>
+
+                      <label>
+                        Overs
+
+                        <input
+                          id={`cricket-overs-b-${match.id}`}
+                          defaultValue={
+                            match.innings_b_overs ?? ""
+                          }
+                          placeholder="20 or 19.3"
+                        />
+                      </label>
+                    </>
+
+                  /* =======================================
+                     EXISTING DOUBLES
+                  ======================================= */
+
+                  ) : doubles ? (
+                    <>
+                      <h4>👥 Doubles Players</h4>
+
+                      <h4>
+                        {match.club_a?.name}
+                      </h4>
+
+                      <label>
+                        Player 1
+
+                        <input
+                          id={`doubles-a1-${match.id}`}
+                          defaultValue={
+                            match.score_a
+                              ?.split(" + ")[0] || ""
+                          }
+                          placeholder="Player 1"
+                        />
+                      </label>
+
+                      <label>
+                        Player 2
+
+                        <input
+                          id={`doubles-a2-${match.id}`}
+                          defaultValue={
+                            match.score_a
+                              ?.split(" + ")[1] || ""
+                          }
+                          placeholder="Player 2"
+                        />
+                      </label>
+
+                      <h4>
+                        {match.club_b?.name}
+                      </h4>
+
+                      <label>
+                        Player 1
+
+                        <input
+                          id={`doubles-b1-${match.id}`}
+                          defaultValue={
+                            match.score_b
+                              ?.split(" + ")[0] || ""
+                          }
+                          placeholder="Player 1"
+                        />
+                      </label>
+
+                      <label>
+                        Player 2
+
+                        <input
+                          id={`doubles-b2-${match.id}`}
+                          defaultValue={
+                            match.score_b
+                              ?.split(" + ")[1] || ""
+                          }
+                          placeholder="Player 2"
+                        />
+                      </label>
+                    </>
+
+                  /* =======================================
+                     EXISTING NORMAL MATCH
+                  ======================================= */
+
+                  ) : (
+                    <div className="two">
+                      <input
+                        id={`normal-score-a-${match.id}`}
+                        defaultValue={
+                          match.score_a || ""
+                        }
+                        placeholder="Score A"
+                      />
+
+                      <input
+                        id={`normal-score-b-${match.id}`}
+                        defaultValue={
+                          match.score_b || ""
+                        }
+                        placeholder="Score B"
+                      />
+                    </div>
+                  )}
+
+                  <select
+                    id={`status-${match.id}`}
+                    defaultValue={
+                      match.status || "Upcoming"
+                    }
+                  >
+                    <option value="Upcoming">
+                      Upcoming
+                    </option>
+
+                    <option value="Live">
+                      Live
+                    </option>
+
+                    <option value="Final">
+                      Final
+                    </option>
+                  </select>
+
+                  <button
+                    onClick={() =>
+                      cricket
+                        ? saveCricketMatch(match)
+                        : doubles
+                        ? saveDoublesMatch(match)
+                        : saveNormalMatch(match)
+                    }
+                  >
+                    💾 Save Match
+                  </button>
+
+                  <button
+                    style={{
+                      background: "#b42336",
+                      borderColor: "#b42336",
+                    }}
+                    onClick={() =>
+                      deleteMatch(match.id)
+                    }
+                  >
+                    🗑️ Delete Match
+                  </button>
+                </div>
+              );
+            })
           )}
         </div>
 
@@ -2532,75 +2506,51 @@ export default function Admin() {
         ================================================= */}
 
         <div className="card">
-          <h2>
-            🏆 Finalized Results
-          </h2>
+          <h2>🏆 Finalized Results</h2>
 
           {results.length === 0 ? (
             <p className="muted">
               No finalized results yet.
             </p>
           ) : (
-            results.map(
-              (result) => (
-                <div
-                  className="adminMatch"
-                  key={result.id}
+            results.map((result) => (
+              <div
+                className="adminMatch"
+                key={result.id}
+              >
+                <b>
+                  {result.position === 1
+                    ? "🥇"
+                    : result.position === 2
+                    ? "🥈"
+                    : "🥉"}{" "}
+                  {result.clubs?.name ||
+                    "Unknown Club"}
+                </b>
+
+                <small>
+                  {result.events?.gender}
+                  {" · "}
+                  {result.events?.name}
+                  {" · "}
+                  {result.events?.category}
+                  {" — "}
+                  {result.points} points
+                </small>
+
+                <button
+                  style={{
+                    background: "#b42336",
+                    borderColor: "#b42336",
+                  }}
+                  onClick={() =>
+                    deleteResult(result.id)
+                  }
                 >
-                  <b>
-                    {result.position ===
-                    1
-                      ? "🥇"
-                      : result.position ===
-                        2
-                      ? "🥈"
-                      : "🥉"}
-
-                    {" "}
-
-                    {result.clubs
-                      ?.name ||
-                      "Unknown Club"}
-                  </b>
-
-                  <small>
-                    {
-                      result.events
-                        ?.gender
-                    }
-                    {" · "}
-                    {
-                      result.events
-                        ?.name
-                    }
-                    {" · "}
-                    {
-                      result.events
-                        ?.category
-                    }
-                    {" — "}
-                    {result.points}{" "}
-                    points
-                  </small>
-
-                  <button
-                    style={{
-                      background:
-                        "#b42336",
-                      borderColor:
-                        "#b42336",
-                    }}
-                    onClick={() =>
-                      deleteResult(
-                        result.id
-                      )
-                    }
-                  >
-                    🗑️ Delete Result
-                  </button>
-                </div>
-              )
-            )
+                  🗑️ Delete Result
+                </button>
+              </div>
+            ))
           )}
         </div>
 
@@ -2609,37 +2559,31 @@ export default function Admin() {
         ================================================= */}
 
         <div className="card">
-          <h2>
-            📋 All Events
-          </h2>
+          <h2>📋 All Events</h2>
 
           {events.length === 0 ? (
             <p className="muted">
               No events found.
             </p>
           ) : (
-            events.map(
-              (event) => (
-                <div
-                  className="adminMatch"
-                  key={event.id}
-                >
-                  <b>
-                    {event.name}
-                  </b>
+            events.map((event) => (
+              <div
+                className="adminMatch"
+                key={event.id}
+              >
+                <b>{event.name}</b>
 
-                  <small>
-                    {event.gender}
-                    {" · "}
-                    {event.category}
-                  </small>
-                </div>
-              )
-            )
+                <small>
+                  {event.gender}
+                  {" · "}
+                  {event.category}
+                </small>
+              </div>
+            ))
           )}
         </div>
 
       </section>
     </main>
   );
-}
+                     }
