@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { supabase } from "../lib/supabase";
+import { supabase } from "./lib/supabase";
 
 const clubs = [
   "Falcons",
@@ -10,14 +10,6 @@ const clubs = [
   "Griffins",
   "Phoenix"
 ];
-
-const clubMap = {
-  1: "Falcons",
-  2: "Eagles",
-  3: "Thunderbirds",
-  4: "Griffins",
-  5: "Phoenix"
-};
 
 const eventGroups = {
   "Men's Team Sports": [
@@ -77,154 +69,577 @@ const eventGroups = {
 };
 
 
-/*
-  Build the sport dropdown from the actual events
-  stored in Supabase.
-*/
-function getEventLabel(event) {
-  return `${event.gender} · ${event.name}`;
+// ============================================================
+// HELPERS
+// ============================================================
+
+function numericScore(value) {
+  if (
+    value === null ||
+    value === undefined ||
+    value === ""
+  ) {
+    return null;
+  }
+
+  const text = String(value).trim();
+
+  // Only treat simple numeric scores as PF/PA.
+  // Examples: 2, 75, 102.5
+  // Cricket scores like 185/6 are not treated as simple numbers.
+  if (!/^-?\d+(\.\d+)?$/.test(text)) {
+    return null;
+  }
+
+  const number = Number(text);
+
+  return Number.isFinite(number)
+    ? number
+    : null;
 }
 
 
+function isTeamEvent(event) {
+  if (!event) return false;
+
+  const category = String(
+    event.category || ""
+  ).toLowerCase();
+
+  const pointsType = String(
+    event.points_type || ""
+  ).toLowerCase();
+
+  return (
+    category.includes("team") ||
+    pointsType.includes("team")
+  );
+}
+
+
+function getSportPoints(
+  sport,
+  result
+) {
+  const name = String(
+    sport || ""
+  ).toLowerCase();
+
+  // Football:
+  // Win = 3
+  // Draw = 1
+  // Loss = 0
+  if (name === "football") {
+    if (result === "win") return 3;
+    if (result === "draw") return 1;
+    return 0;
+  }
+
+  // Cricket:
+  // Win = 2
+  // No Result = 1
+  // Loss = 0
+  if (name === "cricket") {
+    if (result === "win") return 2;
+    if (result === "no_result") return 1;
+    return 0;
+  }
+
+  // Volleyball:
+  // Win = 3
+  // Draws are normally not used.
+  if (name === "volleyball") {
+    if (result === "win") return 3;
+    return 0;
+  }
+
+  // Basketball:
+  // Win = 2
+  // Loss = 1
+  if (name === "basketball") {
+    if (result === "win") return 2;
+    if (result === "loss") return 1;
+    return 0;
+  }
+
+  // Throwball:
+  // Win = 2
+  // Loss = 0
+  if (name === "throwball") {
+    if (result === "win") return 2;
+    return 0;
+  }
+
+  // Kho Kho:
+  // Win = 2
+  // Draw = 1
+  // Loss = 0
+  if (name === "kho kho") {
+    if (result === "win") return 2;
+    if (result === "draw") return 1;
+    return 0;
+  }
+
+  // Default team-sport system:
+  // Win = 3, Draw = 1, Loss = 0
+  if (result === "win") return 3;
+  if (result === "draw") return 1;
+
+  return 0;
+}
+
+
+function getResultForClub(
+  match,
+  clubId
+) {
+  const club = Number(clubId);
+
+  const winner =
+    match.winner_club_id === null ||
+    match.winner_club_id === undefined ||
+    match.winner_club_id === ""
+      ? null
+      : Number(match.winner_club_id);
+
+  const clubA = Number(match.club_a_id);
+  const clubB = Number(match.club_b_id);
+
+  // Explicit winner exists
+  if (winner !== null) {
+    if (winner === club) {
+      return "win";
+    }
+
+    return "loss";
+  }
+
+  // If there is no winner, check numeric scores.
+  const scoreA = numericScore(match.score_a);
+  const scoreB = numericScore(match.score_b);
+
+  if (
+    scoreA !== null &&
+    scoreB !== null
+  ) {
+    if (scoreA === scoreB) {
+      return "draw";
+    }
+
+    if (
+      club === clubA &&
+      scoreA > scoreB
+    ) {
+      return "win";
+    }
+
+    if (
+      club === clubB &&
+      scoreB > scoreA
+    ) {
+      return "win";
+    }
+
+    return "loss";
+  }
+
+  // Cricket/no-result style match.
+  return "no_result";
+}
+
+
+function buildLeaderboard(
+  sport,
+  event,
+  matches,
+  clubRows
+) {
+  const table = {};
+
+  clubRows.forEach((club) => {
+    table[club.id] = {
+      id: club.id,
+      name: club.name,
+
+      played: 0,
+      wins: 0,
+      draws: 0,
+      losses: 0,
+      noResults: 0,
+
+      pf: 0,
+      pa: 0,
+      pd: 0,
+
+      points: 0
+    };
+  });
+
+  const completed = matches.filter(
+    (match) => {
+      if (
+        String(match.status || "")
+          .toLowerCase() !== "final"
+      ) {
+        return false;
+      }
+
+      return (
+        Number(match.event_id) ===
+        Number(event.id)
+      );
+    }
+  );
+
+
+  completed.forEach((match) => {
+    const clubA = table[match.club_a_id];
+    const clubB = table[match.club_b_id];
+
+    if (!clubA || !clubB) {
+      return;
+    }
+
+    clubA.played += 1;
+    clubB.played += 1;
+
+
+    const resultA =
+      getResultForClub(
+        match,
+        match.club_a_id
+      );
+
+    const resultB =
+      getResultForClub(
+        match,
+        match.club_b_id
+      );
+
+
+    if (resultA === "win") {
+      clubA.wins += 1;
+    }
+
+    if (resultB === "win") {
+      clubB.wins += 1;
+    }
+
+
+    if (resultA === "draw") {
+      clubA.draws += 1;
+    }
+
+    if (resultB === "draw") {
+      clubB.draws += 1;
+    }
+
+
+    if (resultA === "loss") {
+      clubA.losses += 1;
+    }
+
+    if (resultB === "loss") {
+      clubB.losses += 1;
+    }
+
+
+    if (resultA === "no_result") {
+      clubA.noResults += 1;
+    }
+
+    if (resultB === "no_result") {
+      clubB.noResults += 1;
+    }
+
+
+    // Numeric PF / PA
+    const scoreA =
+      numericScore(match.score_a);
+
+    const scoreB =
+      numericScore(match.score_b);
+
+
+    if (
+      scoreA !== null &&
+      scoreB !== null
+    ) {
+      clubA.pf += scoreA;
+      clubA.pa += scoreB;
+
+      clubB.pf += scoreB;
+      clubB.pa += scoreA;
+    }
+
+
+    clubA.points +=
+      getSportPoints(
+        sport,
+        resultA
+      );
+
+    clubB.points +=
+      getSportPoints(
+        sport,
+        resultB
+      );
+  });
+
+
+  Object.values(table).forEach(
+    (club) => {
+      club.pd =
+        club.pf - club.pa;
+    }
+  );
+
+
+  const sorted =
+    Object.values(table).sort(
+      (a, b) => {
+
+        // 1. Points
+        if (
+          b.points !==
+          a.points
+        ) {
+          return (
+            b.points -
+            a.points
+          );
+        }
+
+        // 2. Wins
+        if (
+          b.wins !==
+          a.wins
+        ) {
+          return (
+            b.wins -
+            a.wins
+          );
+        }
+
+        // 3. Point difference
+        if (
+          b.pd !==
+          a.pd
+        ) {
+          return (
+            b.pd -
+            a.pd
+          );
+        }
+
+        // 4. Points for
+        if (
+          b.pf !==
+          a.pf
+        ) {
+          return (
+            b.pf -
+            a.pf
+          );
+        }
+
+        // 5. Alphabetical
+        return a.name.localeCompare(
+          b.name
+        );
+      }
+    );
+
+
+  return {
+    rows: sorted,
+    completedCount:
+      completed.length
+  };
+}
+
+
+// ============================================================
+// MAIN PAGE
+// ============================================================
+
 export default function Home() {
 
-  const [matches, setMatches] = useState([]);
-  const [results, setResults] = useState([]);
-  const [events, setEvents] = useState([]);
+  const [matches, setMatches] =
+    useState([]);
 
-  const [points, setPoints] = useState({});
+  const [points, setPoints] =
+    useState({});
 
-  const [loading, setLoading] = useState(true);
+  const [events, setEvents] =
+    useState([]);
 
-  const [selectedEvent, setSelectedEvent] =
-    useState("");
+  const [clubRows, setClubRows] =
+    useState([]);
+
+  const [loading, setLoading] =
+    useState(true);
+
+  const [
+    selectedTeamSport,
+    setSelectedTeamSport
+  ] = useState("");
 
 
   async function load() {
 
     setLoading(true);
 
+
     const [
-      { data: m, error: matchesError },
-      { data: r, error: resultsError },
-      { data: e, error: eventsError }
-    ] = await Promise.all([
+      { data: m, error: matchError },
+      { data: r, error: resultError },
+      { data: e, error: eventError },
+      { data: c, error: clubError }
+    ] =
+      await Promise.all([
 
-      supabase
-        .from("matches")
-        .select(`
-          id,
-          club_a_id,
-          club_b_id,
-          score_a,
-          score_b,
-          status,
-          match_time,
-          event_id,
-          events(name, gender, category)
-        `)
-        .order("match_time", {
-          ascending: true
-        }),
-
-      supabase
-        .from("event_results")
-        .select(`
-          id,
-          event_id,
-          club_id,
-          position,
-          points
-        `)
-        .order("event_id")
-        .order("position"),
-
-      supabase
-        .from("events")
-        .select(`
-          id,
-          name,
-          gender,
-          category
-        `)
-        .order("id")
-
-    ]);
+        supabase
+          .from("matches")
+          .select(`
+            id,
+            event_id,
+            club_a_id,
+            club_b_id,
+            score_a,
+            score_b,
+            status,
+            match_time,
+            winner_club_id,
+            events(
+              id,
+              name,
+              gender,
+              category,
+              points_type
+            ),
+            club_a:club_a_id(name),
+            club_b:club_b_id(name)
+          `)
+          .order(
+            "match_time",
+            {
+              ascending: true
+            }
+          ),
 
 
-    if (matchesError) {
+        supabase
+          .from("event_results")
+          .select(`
+            club_id,
+            points,
+            clubs(name)
+          `),
+
+
+        supabase
+          .from("events")
+          .select("*")
+          .order("id"),
+
+
+        supabase
+          .from("clubs")
+          .select("*")
+          .order("id")
+      ]);
+
+
+    if (matchError) {
       console.error(
         "Matches error:",
-        matchesError
+        matchError
       );
     }
 
-    if (resultsError) {
+    if (resultError) {
       console.error(
         "Results error:",
-        resultsError
+        resultError
       );
     }
 
-    if (eventsError) {
+    if (eventError) {
       console.error(
         "Events error:",
-        eventsError
+        eventError
+      );
+    }
+
+    if (clubError) {
+      console.error(
+        "Clubs error:",
+        clubError
       );
     }
 
 
     setMatches(m || []);
-    setResults(r || []);
     setEvents(e || []);
+    setClubRows(c || []);
 
 
-    /*
-      OVERALL CLUB POINTS
-    */
+    // ========================================================
+    // OVERALL CLUB POINTS
+    // ========================================================
 
     const totals = {};
 
-    clubs.forEach((club) => {
-      totals[club] = 0;
-    });
 
+    (r || []).forEach(
+      (x) => {
 
-    (r || []).forEach((result) => {
+        const name =
+          x.clubs?.name;
 
-      const clubName =
-        clubMap[
-          Number(result.club_id)
-        ];
-
-      if (clubName) {
-
-        totals[clubName] +=
-          Number(result.points || 0);
-
+        if (name) {
+          totals[name] =
+            (
+              totals[name] ||
+              0
+            ) +
+            Number(
+              x.points || 0
+            );
+        }
       }
+    );
 
-    });
+
+    clubs.forEach(
+      (club) => {
+        totals[club] =
+          totals[club] || 0;
+      }
+    );
 
 
     setPoints(totals);
 
 
-    /*
-      Automatically select first event
-      if nothing is selected yet.
-    */
-
-    if (
-      !selectedEvent &&
-      e &&
-      e.length > 0
-    ) {
-
-      setSelectedEvent(
-        String(e[0].id)
+    // Automatically select first team event
+    const teamEvents =
+      (e || []).filter(
+        (event) =>
+          isTeamEvent(event)
       );
 
+
+    if (
+      !selectedTeamSport &&
+      teamEvents.length
+    ) {
+      setSelectedTeamSport(
+        String(
+          teamEvents[0].id
+        )
+      );
     }
 
 
@@ -233,256 +648,235 @@ export default function Home() {
 
 
   useEffect(() => {
-
     load();
 
 
-    const channel = supabase
-      .channel("euphoria-live")
+    const channel =
+      supabase
+        .channel(
+          "euphoria-live"
+        )
 
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "matches"
-        },
-        load
-      )
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "matches"
+          },
+          load
+        )
 
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "event_results"
-        },
-        load
-      )
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "event_results"
+          },
+          load
+        )
 
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "events"
-        },
-        load
-      )
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "events"
+          },
+          load
+        )
 
-      .subscribe();
+        .subscribe();
 
 
     return () => {
-
       supabase.removeChannel(
         channel
       );
-
     };
 
   }, []);
 
 
-  /*
-    MATCH STATUS GROUPS
-  */
-
-  const liveMatches =
-    matches.filter(
-      (match) =>
-        String(match.status)
-          .toLowerCase() === "live"
-    );
-
+  // ==========================================================
+  // MATCH GROUPS
+  // ==========================================================
 
   const upcomingMatches =
     matches.filter(
       (match) =>
-        String(match.status)
-          .toLowerCase() === "upcoming"
+        String(
+          match.status || ""
+        ).toLowerCase() ===
+        "upcoming"
+    );
+
+
+  const liveMatches =
+    matches.filter(
+      (match) =>
+        String(
+          match.status || ""
+        ).toLowerCase() ===
+        "live"
     );
 
 
   const completedMatches =
     matches.filter(
       (match) =>
-        String(match.status)
-          .toLowerCase() === "final"
+        String(
+          match.status || ""
+        ).toLowerCase() ===
+        "final"
     );
 
 
-  /*
-    OVERALL LEADERBOARD
-  */
+  // ==========================================================
+  // OVERALL LEADERBOARD
+  // ==========================================================
 
   const leaderboard =
     [...clubs].sort(
       (a, b) =>
-        (points[b] || 0) -
-        (points[a] || 0)
+        (
+          points[b] || 0
+        ) -
+        (
+          points[a] || 0
+        )
     );
 
 
-  /*
-    SPORT-SPECIFIC LEADERBOARD
-  */
+  // ==========================================================
+  // TEAM SPORTS
+  // ==========================================================
 
-  const sportResults =
-    results.filter(
-      (result) =>
-        String(result.event_id) ===
-        String(selectedEvent)
+  const teamSports =
+    events.filter(
+      (event) =>
+        isTeamEvent(event)
     );
 
 
-  const sportPoints = {};
-
-  clubs.forEach((club) => {
-    sportPoints[club] = 0;
-  });
-
-
-  sportResults.forEach((result) => {
-
-    const clubName =
-      clubMap[
-        Number(result.club_id)
-      ];
-
-    if (clubName) {
-
-      sportPoints[clubName] +=
-        Number(result.points || 0);
-
-    }
-
-  });
-
-
-  const sportLeaderboard =
-    [...clubs].sort(
-      (a, b) =>
-        (sportPoints[b] || 0) -
-        (sportPoints[a] || 0)
-    );
-
-
-  const selectedEventData =
-    events.find(
+  const selectedEvent =
+    teamSports.find(
       (event) =>
         String(event.id) ===
-        String(selectedEvent)
+        String(
+          selectedTeamSport
+        )
     );
 
 
-  /*
-    MATCH CARD
-  */
+  let sportLeaderboard = {
+    rows: [],
+    completedCount: 0
+  };
 
-  function MatchCard({ match }) {
+
+  if (selectedEvent) {
+
+    sportLeaderboard =
+      buildLeaderboard(
+        selectedEvent.name,
+        selectedEvent,
+        matches,
+        clubRows
+      );
+  }
+
+
+  const usesNumericScores =
+    selectedEvent &&
+    [
+      "football",
+      "basketball"
+    ].includes(
+      String(
+        selectedEvent.name || ""
+      ).toLowerCase()
+    );
+
+
+  // ==========================================================
+  // MATCH CARD
+  // ==========================================================
+
+  function MatchCard({
+    match
+  }) {
 
     return (
 
-      <div className="match">
+      <div
+        className="match"
+        key={match.id}
+      >
 
         <div>
-
           <b>
-            {clubMap[
-              Number(match.club_a_id)
-            ] || "TBD"}
+            {
+              match.club_a?.name ||
+              "TBD"
+            }
           </b>
 
           <strong>
-            {match.score_a || "—"}
+            {
+              match.score_a ||
+              "—"
+            }
           </strong>
-
         </div>
 
 
         <div>
-
           <b>
-            {clubMap[
-              Number(match.club_b_id)
-            ] || "TBD"}
+            {
+              match.club_b?.name ||
+              "TBD"
+            }
           </b>
 
           <strong>
-            {match.score_b || "—"}
+            {
+              match.score_b ||
+              "—"
+            }
           </strong>
-
         </div>
 
 
         <small>
 
-          {match.events?.name}
+          {
+            match.events?.name
+          }
 
           {" · "}
 
-          {match.events?.gender}
+          {
+            match.events?.gender
+          }
 
           {" · "}
 
-          {match.events?.category}
+          {
+            match.status
+          }
 
         </small>
 
       </div>
-
     );
-
   }
 
 
-  /*
-    MATCH SECTION
-  */
-
-  function MatchSection({
-    title,
-    matches,
-    emptyText
-  }) {
-
-    return (
-
-      <div className="card section">
-
-        <h2>
-          {title}
-        </h2>
-
-
-        {matches.length === 0 ? (
-
-          <p className="muted">
-            {emptyText}
-          </p>
-
-        ) : (
-
-          matches.map(
-            (match) => (
-
-              <MatchCard
-                key={match.id}
-                match={match}
-              />
-
-            )
-          )
-
-        )}
-
-      </div>
-
-    );
-
-  }
-
+  // ==========================================================
+  // PAGE
+  // ==========================================================
 
   return (
 
@@ -493,12 +887,11 @@ export default function Home() {
       <header>
 
         <div className="logo">
-
-          EUPHORIA
-          <span>SPORTS</span>
-
+          EUPHORIA{" "}
+          <span>
+            SPORTS
+          </span>
         </div>
-
 
         <a href="/admin">
           ADMIN
@@ -512,7 +905,8 @@ export default function Home() {
       <section className="hero">
 
         <small>
-          INTER-CLUB SPORTS CHAMPIONSHIP
+          INTER-CLUB SPORTS
+          CHAMPIONSHIP
         </small>
 
 
@@ -520,16 +914,16 @@ export default function Home() {
 
           THE GAME
           <br />
+
           IS ON.
 
         </h1>
 
 
         <p>
-
-          Live scores, results and the race
-          for the Euphoria Club Championship.
-
+          Live scores, results and
+          the race for the Euphoria
+          Club Championship.
         </p>
 
       </section>
@@ -538,70 +932,145 @@ export default function Home() {
       <section className="wrap">
 
 
-        {/* LIVE */}
+        {/* ====================================================
+            LIVE / UPCOMING
+        ==================================================== */}
 
-        {loading ? (
+        <div className="grid">
+
 
           <div className="card">
 
-            <p>
-              Loading matches...
-            </p>
+            <div className="live">
+              🔴 LIVE
+            </div>
+
+            <h2>
+              Live Matches
+            </h2>
+
+
+            {loading ? (
+
+              <p>
+                Loading...
+              </p>
+
+            ) : liveMatches.length ===
+              0 ? (
+
+              <p className="muted">
+                No live matches right now.
+              </p>
+
+            ) : (
+
+              liveMatches.map(
+                (match) => (
+                  <MatchCard
+                    key={match.id}
+                    match={match}
+                  />
+                )
+              )
+
+            )}
 
           </div>
 
-        ) : (
 
-          <MatchSection
-            title="🔴 LIVE"
-            matches={liveMatches}
-            emptyText="No matches are live right now."
-          />
+          <div className="card">
 
-        )}
+            <div className="live">
+              🟡 UPCOMING
+            </div>
 
-
-        {/* UPCOMING */}
-
-        {!loading && (
-
-          <MatchSection
-            title="🟡 UPCOMING"
-            matches={upcomingMatches}
-            emptyText="No upcoming matches."
-          />
-
-        )}
+            <h2>
+              Upcoming Matches
+            </h2>
 
 
-        {/* COMPLETED */}
+            {loading ? (
 
-        {!loading && (
+              <p>
+                Loading...
+              </p>
 
-          <MatchSection
-            title="✅ COMPLETED"
-            matches={completedMatches}
-            emptyText="No completed matches yet."
-          />
+            ) : upcomingMatches.length ===
+              0 ? (
 
-        )}
+              <p className="muted">
+                No upcoming matches.
+              </p>
+
+            ) : (
+
+              upcomingMatches.map(
+                (match) => (
+                  <MatchCard
+                    key={match.id}
+                    match={match}
+                  />
+                )
+              )
+
+            )}
+
+          </div>
 
 
-        {/* OVERALL LEADERBOARD */}
+        </div>
+
+
+        {/* ====================================================
+            COMPLETED
+        ==================================================== */}
 
         <div className="card section">
 
           <h2>
-            🏆 Overall Club Championship
+            ✅ Completed Matches
           </h2>
 
 
-          <p className="muted">
+          {loading ? (
 
-            Total points accumulated across
-            all sports and events.
+            <p>
+              Loading...
+            </p>
 
-          </p>
+          ) : completedMatches.length ===
+            0 ? (
+
+            <p className="muted">
+              No completed matches yet.
+            </p>
+
+          ) : (
+
+            completedMatches.map(
+              (match) => (
+                <MatchCard
+                  key={match.id}
+                  match={match}
+                />
+              )
+            )
+
+          )}
+
+        </div>
+
+
+        {/* ====================================================
+            OVERALL CLUB POINTS
+        ==================================================== */}
+
+        <div className="card">
+
+          <h2>
+            🏆 Overall Club Points
+          </h2>
 
 
           {leaderboard.map(
@@ -613,23 +1082,20 @@ export default function Home() {
               >
 
                 <span>
-
-                  {index + 1}
-
+                  {
+                    index + 1
+                  }
                 </span>
 
-
                 <b>
-
                   {club}
-
                 </b>
 
-
                 <strong>
-
-                  {points[club] || 0}
-
+                  {
+                    points[club] ||
+                    0
+                  }
                 </strong>
 
               </div>
@@ -640,135 +1106,545 @@ export default function Home() {
         </div>
 
 
-        {/* SPORT LEADERBOARD */}
+        {/* ====================================================
+            TEAM SPORT LEADERBOARDS
+        ==================================================== */}
 
         <div className="card section">
 
           <h2>
-            🏅 Sport-wise Leaderboard
+            🏆 Team Sport Leaderboards
           </h2>
 
 
           <p className="muted">
-
-            View the standings for each
-            individual sport.
-
+            Live standings calculated
+            automatically from completed
+            matches.
           </p>
 
 
-          <label>
+          {teamSports.length === 0 ? (
 
-            Select Sport
+            <p className="muted">
+              No team sports have been
+              added yet.
+            </p>
 
-            <select
-              value={selectedEvent}
-              onChange={(e) =>
-                setSelectedEvent(
-                  e.target.value
-                )
-              }
-            >
+          ) : (
 
-              <option value="">
+            <>
+
+              <label>
+
                 Select Sport
-              </option>
+
+                <select
+                  value={
+                    selectedTeamSport
+                  }
+                  onChange={(e) =>
+                    setSelectedTeamSport(
+                      e.target.value
+                    )
+                  }
+                >
+
+                  {teamSports.map(
+                    (event) => (
+
+                      <option
+                        key={event.id}
+                        value={event.id}
+                      >
+
+                        {
+                          event.gender
+                        }
+
+                        {" · "}
+
+                        {
+                          event.name
+                        }
+
+                      </option>
+
+                    )
+                  )}
+
+                </select>
+
+              </label>
 
 
-              {events.map(
-                (event) => (
+              {selectedEvent && (
 
-                  <option
-                    key={event.id}
-                    value={event.id}
+                <>
+
+                  <h3
+                    style={{
+                      marginTop:
+                        "24px"
+                    }}
                   >
 
-                    {getEventLabel(event)}
+                    {
+                      selectedEvent.name
+                    }
 
-                  </option>
+                    {" — "}
 
-                )
+                    {
+                      selectedEvent.gender
+                    }
+
+                  </h3>
+
+
+                  {sportLeaderboard.completedCount ===
+                    0 ? (
+
+                    <div className="card">
+
+                      <p
+                        className="muted"
+                      >
+                        No matches played
+                        yet.
+                      </p>
+
+                      <div
+                        className="rank"
+                      >
+
+                        <b>
+                          All clubs
+                        </b>
+
+                        <strong>
+                          0 matches
+                        </strong>
+
+                      </div>
+
+                    </div>
+
+                  ) : (
+
+                    <>
+
+                      <div
+                        style={{
+                          overflowX:
+                            "auto",
+                          marginTop:
+                            "16px"
+                        }}
+                      >
+
+                        <table
+                          style={{
+                            width:
+                              "100%",
+                            borderCollapse:
+                              "collapse",
+                            minWidth:
+                              usesNumericScores
+                                ? "700px"
+                                : "600px"
+                          }}
+                        >
+
+                          <thead>
+
+                            <tr>
+
+                              <th>
+                                #
+                              </th>
+
+                              <th
+                                style={{
+                                  textAlign:
+                                    "left"
+                                }}
+                              >
+                                Club
+                              </th>
+
+                              <th>
+                                P
+                              </th>
+
+                              <th>
+                                W
+                              </th>
+
+                              {selectedEvent.name
+                                .toLowerCase() !==
+                                "cricket" && (
+
+                                <th>
+                                  D
+                                </th>
+
+                              )}
+
+                              <th>
+                                L
+                              </th>
+
+                              {selectedEvent.name
+                                .toLowerCase() ===
+                                "cricket" && (
+
+                                <th>
+                                  NR
+                                </th>
+
+                              )}
+
+                              {usesNumericScores && (
+
+                                <>
+
+                                  <th>
+                                    PF
+                                  </th>
+
+                                  <th>
+                                    PA
+                                  </th>
+
+                                  <th>
+                                    PD
+                                  </th>
+
+                                </>
+
+                              )}
+
+                              <th>
+                                Pts
+                              </th>
+
+                            </tr>
+
+                          </thead>
+
+
+                          <tbody>
+
+                            {sportLeaderboard.rows.map(
+                              (
+                                row,
+                                index
+                              ) => (
+
+                                <tr
+                                  key={
+                                    row.id
+                                  }
+                                >
+
+                                  <td
+                                    style={{
+                                      textAlign:
+                                        "center",
+                                      fontWeight:
+                                        "bold"
+                                    }}
+                                  >
+
+                                    {
+                                      index ===
+                                      0
+                                        ? "🥇"
+                                        : index ===
+                                          1
+                                        ? "🥈"
+                                        : index ===
+                                          2
+                                        ? "🥉"
+                                        : index +
+                                          1
+                                    }
+
+                                  </td>
+
+
+                                  <td
+                                    style={{
+                                      fontWeight:
+                                        "bold"
+                                    }}
+                                  >
+                                    {
+                                      row.name
+                                    }
+                                  </td>
+
+
+                                  <td
+                                    style={{
+                                      textAlign:
+                                        "center"
+                                    }}
+                                  >
+                                    {
+                                      row.played
+                                    }
+                                  </td>
+
+
+                                  <td
+                                    style={{
+                                      textAlign:
+                                        "center"
+                                    }}
+                                  >
+                                    {
+                                      row.wins
+                                    }
+                                  </td>
+
+
+                                  {selectedEvent.name
+                                    .toLowerCase() !==
+                                    "cricket" && (
+
+                                    <td
+                                      style={{
+                                        textAlign:
+                                          "center"
+                                      }}
+                                    >
+                                      {
+                                        row.draws
+                                      }
+                                    </td>
+
+                                  )}
+
+
+                                  <td
+                                    style={{
+                                      textAlign:
+                                        "center"
+                                    }}
+                                  >
+                                    {
+                                      row.losses
+                                    }
+                                  </td>
+
+
+                                  {selectedEvent.name
+                                    .toLowerCase() ===
+                                    "cricket" && (
+
+                                    <td
+                                      style={{
+                                        textAlign:
+                                          "center"
+                                      }}
+                                    >
+                                      {
+                                        row.noResults
+                                      }
+                                    </td>
+
+                                  )}
+
+
+                                  {usesNumericScores && (
+
+                                    <>
+
+                                      <td
+                                        style={{
+                                          textAlign:
+                                            "center"
+                                        }}
+                                      >
+                                        {
+                                          Number.isInteger(
+                                            row.pf
+                                          )
+                                            ? row.pf
+                                            : row.pf.toFixed(
+                                                1
+                                              )
+                                        }
+                                      </td>
+
+
+                                      <td
+                                        style={{
+                                          textAlign:
+                                            "center"
+                                        }}
+                                      >
+                                        {
+                                          Number.isInteger(
+                                            row.pa
+                                          )
+                                            ? row.pa
+                                            : row.pa.toFixed(
+                                                1
+                                              )
+                                        }
+                                      </td>
+
+
+                                      <td
+                                        style={{
+                                          textAlign:
+                                            "center",
+                                          fontWeight:
+                                            "bold"
+                                        }}
+                                      >
+                                        {
+                                          row.pd >
+                                          0
+                                            ? "+"
+                                            : ""
+                                        }
+
+                                        {
+                                          Number.isInteger(
+                                            row.pd
+                                          )
+                                            ? row.pd
+                                            : row.pd.toFixed(
+                                                1
+                                              )
+                                        }
+                                      </td>
+
+                                    </>
+
+                                  )}
+
+
+                                  <td
+                                    style={{
+                                      textAlign:
+                                        "center",
+                                      fontWeight:
+                                        "bold"
+                                    }}
+                                  >
+                                    {
+                                      row.points
+                                    }
+                                  </td>
+
+                                </tr>
+
+                              )
+                            )}
+
+                          </tbody>
+
+                        </table>
+
+                      </div>
+
+
+                      <p
+                        className="muted"
+                        style={{
+                          marginTop:
+                            "12px",
+                          fontSize:
+                            "13px"
+                        }}
+                      >
+
+                        <b>
+                          P
+                        </b>{" "}
+                        Played ·{" "}
+
+                        <b>
+                          W
+                        </b>{" "}
+                        Won ·{" "}
+
+                        {selectedEvent.name
+                          .toLowerCase() !==
+                          "cricket" && (
+                          <>
+                            <b>
+                              D
+                            </b>{" "}
+                            Draw ·{" "}
+                          </>
+                        )}
+
+                        <b>
+                          L
+                        </b>{" "}
+                        Lost ·{" "}
+
+                        {selectedEvent.name
+                          .toLowerCase() ===
+                          "cricket" && (
+                          <>
+                            <b>
+                              NR
+                            </b>{" "}
+                            No Result ·{" "}
+                          </>
+                        )}
+
+                        {usesNumericScores && (
+                          <>
+                            <b>
+                              PF
+                            </b>{" "}
+                            Points For ·{" "}
+
+                            <b>
+                              PA
+                            </b>{" "}
+                            Points Against ·{" "}
+
+                            <b>
+                              PD
+                            </b>{" "}
+                            Point Difference ·{" "}
+                          </>
+                        )}
+
+                        <b>
+                          Pts
+                        </b>{" "}
+                        Competition Points
+
+                      </p>
+
+                    </>
+
+                  )}
+
+                </>
+
               )}
 
-            </select>
-
-          </label>
-
-
-          {selectedEventData && (
-
-            <div
-              style={{
-                marginTop: "18px"
-              }}
-            >
-
-              <h3>
-
-                {selectedEventData.gender}
-                {" · "}
-                {selectedEventData.name}
-
-              </h3>
-
-
-              <p className="muted">
-
-                {selectedEventData.category}
-
-              </p>
-
-
-              {sportLeaderboard.map(
-                (club, index) => (
-
-                  <div
-                    className="rank"
-                    key={club}
-                  >
-
-                    <span>
-
-                      {index === 0 &&
-                      sportPoints[club] > 0
-                        ? "🥇"
-                        : index === 1 &&
-                          sportPoints[club] > 0
-                        ? "🥈"
-                        : index === 2 &&
-                          sportPoints[club] > 0
-                        ? "🥉"
-                        : index + 1}
-
-                    </span>
-
-
-                    <b>
-
-                      {club}
-
-                    </b>
-
-
-                    <strong>
-
-                      {sportPoints[club] || 0}
-
-                    </strong>
-
-                  </div>
-
-                )
-              )}
-
-            </div>
+            </>
 
           )}
 
         </div>
 
 
-        {/* POINTS SYSTEM */}
+        {/* ====================================================
+            POINTS SYSTEM
+        ==================================================== */}
 
         <div className="card section">
 
@@ -822,7 +1698,9 @@ export default function Home() {
         </div>
 
 
-        {/* EVENTS */}
+        {/* ====================================================
+            EVENTS
+        ==================================================== */}
 
         <div className="card section">
 
@@ -854,9 +1732,7 @@ export default function Home() {
                       <span
                         key={sport}
                       >
-
                         {sport}
-
                       </span>
 
                     )
@@ -869,6 +1745,55 @@ export default function Home() {
             )
           )}
 
+
+          {/* Dynamically added events */}
+
+          {events.length >
+            0 && (
+
+            <div
+              className="eventGroup"
+              style={{
+                marginTop:
+                  "24px"
+              }}
+            >
+
+              <h3>
+                Added Events
+              </h3>
+
+
+              <div className="pills">
+
+                {events.map(
+                  (event) => (
+
+                    <span
+                      key={event.id}
+                    >
+
+                      {
+                        event.name
+                      }
+
+                      {" · "}
+
+                      {
+                        event.gender
+                      }
+
+                    </span>
+
+                  )
+                )}
+
+              </div>
+
+            </div>
+
+          )}
+
         </div>
 
 
@@ -877,5 +1802,4 @@ export default function Home() {
     </main>
 
   );
-
 }
