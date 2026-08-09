@@ -26,7 +26,6 @@ export default function Admin() {
   const [msg, setMsg] = useState("");
   const [loading, setLoading] = useState(true);
 
-  // CREATE MATCH
   const [form, setForm] = useState({
     event_id: "",
     club_a_id: "",
@@ -36,7 +35,6 @@ export default function Admin() {
     status: "Upcoming"
   });
 
-  // FINALIZE RESULT
   const [resultForm, setResultForm] = useState({
     event_id: "",
     first: "",
@@ -44,7 +42,6 @@ export default function Admin() {
     third: ""
   });
 
-  // ADD EVENT / SPORT
   const [eventForm, setEventForm] = useState({
     name: "",
     gender: "Men's",
@@ -124,7 +121,6 @@ export default function Admin() {
     setMatches(m || []);
     setResults(r || []);
 
-    // Automatically select the first event for Create Match
     if (!form.event_id && e?.length) {
       setForm((old) => ({
         ...old,
@@ -141,9 +137,9 @@ export default function Admin() {
   }, []);
 
 
-  // =========================================================
-  // ADD NEW SPORT / EVENT
-  // =========================================================
+  // =====================================================
+  // ADD SPORT / EVENT
+  // =====================================================
 
   async function addEvent(e) {
     e.preventDefault();
@@ -159,9 +155,10 @@ export default function Admin() {
     const { error } = await supabase
       .from("events")
       .insert({
-        name,
+        name: name,
         gender: eventForm.gender,
-        category: eventForm.category
+        category: eventForm.category,
+        points_type: eventForm.category
       });
 
     if (error) {
@@ -169,7 +166,9 @@ export default function Admin() {
       return;
     }
 
-    setMsg(`✅ ${eventForm.gender} ${name} added successfully.`);
+    setMsg(
+      `✅ ${eventForm.gender} ${name} added successfully.`
+    );
 
     setEventForm({
       name: "",
@@ -181,9 +180,9 @@ export default function Admin() {
   }
 
 
-  // =========================================================
+  // =====================================================
   // CREATE MATCH
-  // =========================================================
+  // =====================================================
 
   async function addMatch(e) {
     e.preventDefault();
@@ -239,9 +238,9 @@ export default function Admin() {
   }
 
 
-  // =========================================================
+  // =====================================================
   // UPDATE MATCH
-  // =========================================================
+  // =====================================================
 
   async function updateMatch(id, patch) {
     setMsg("");
@@ -262,9 +261,9 @@ export default function Admin() {
   }
 
 
-  // =========================================================
+  // =====================================================
   // DELETE MATCH
-  // =========================================================
+  // =====================================================
 
   async function deleteMatch(id) {
     const ok = window.confirm(
@@ -291,9 +290,9 @@ export default function Admin() {
   }
 
 
-  // =========================================================
+  // =====================================================
   // FINALIZE RESULT
-  // =========================================================
+  // =====================================================
 
   async function finalizeResult(e) {
     e.preventDefault();
@@ -382,9 +381,9 @@ export default function Admin() {
   }
 
 
-  // =========================================================
+  // =====================================================
   // DELETE RESULT
-  // =========================================================
+  // =====================================================
 
   async function deleteResult(id) {
     const ok = window.confirm(
@@ -411,10 +410,6 @@ export default function Admin() {
   }
 
 
-  // =========================================================
-  // DISPLAY
-  // =========================================================
-
   return (
     <main>
 
@@ -436,9 +431,9 @@ export default function Admin() {
       <section className="wrap admin">
 
 
-        {/* =================================================
+        {/* =====================================================
             ADD SPORT / EVENT
-        ================================================= */}
+        ===================================================== */}
 
         <div className="card">
 
@@ -541,9 +536,9 @@ export default function Admin() {
         </div>
 
 
-        {/* =================================================
+        {/* =====================================================
             CREATE MATCH
-        ================================================= */}
+        ===================================================== */}
 
         <div className="card">
 
@@ -740,9 +735,7 @@ export default function Admin() {
         </div>
 
 
-        {/* =================================================
-            MESSAGE
-        ================================================= */}
+        {/* MESSAGE */}
 
         {msg && (
 
@@ -757,9 +750,9 @@ export default function Admin() {
         )}
 
 
-        {/* =================================================
-            FINALIZE EVENT
-        ================================================= */}
+        {/* =====================================================
+            FINALIZE RESULT
+        ===================================================== */}
 
         <div className="card">
 
@@ -927,9 +920,9 @@ export default function Admin() {
         </div>
 
 
-        {/* =================================================
+        {/* =====================================================
             EXISTING MATCHES
-        ================================================= */}
+        ===================================================== */}
 
         <div className="card">
 
@@ -991,7 +984,6 @@ export default function Admin() {
                     }
                     id={`score-a-${match.id}`}
                   />
-
 
                   <input
                     defaultValue={
@@ -1085,9 +1077,9 @@ export default function Admin() {
         </div>
 
 
-        {/* =================================================
+        {/* =====================================================
             FINALIZED RESULTS
-        ================================================= */}
+        ===================================================== */}
 
         <div className="card">
 
@@ -1165,9 +1157,9 @@ export default function Admin() {
         </div>
 
 
-        {/* =================================================
-            CURRENT EVENTS
-        ================================================= */}
+        {/* =====================================================
+            ALL EVENTS
+        ===================================================== */}
 
         <div className="card">
 
@@ -1220,4 +1212,4 @@ export default function Admin() {
 
     </main>
   );
-}
+                  }
