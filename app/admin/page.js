@@ -90,86 +90,6 @@ function displayCricketScore(runs, wickets, overs) {
 }
 
 /* =========================================================
-   COLLAPSIBLE SECTION
-========================================================= */
-
-function CollapsibleSection({
-  title,
-  icon,
-  children,
-  defaultOpen = false,
-}) {
-  const [open, setOpen] = useState(defaultOpen);
-
-  return (
-    <div
-      className="card"
-      style={{
-        padding: 0,
-        overflow: "hidden",
-      }}
-    >
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        style={{
-          width: "100%",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          textAlign: "left",
-          padding: "20px",
-          margin: 0,
-          border: "none",
-          borderRadius: 0,
-          background: "transparent",
-          color: "inherit",
-          cursor: "pointer",
-          boxShadow: "none",
-        }}
-      >
-        <span
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "10px",
-            fontSize: "1.15rem",
-            fontWeight: 700,
-          }}
-        >
-          <span>{icon}</span>
-          <span>{title}</span>
-        </span>
-
-        <span
-          style={{
-            fontSize: "1.2rem",
-            transition: "transform .2s ease",
-            transform: open
-              ? "rotate(180deg)"
-              : "rotate(0deg)",
-          }}
-        >
-          ▼
-        </span>
-      </button>
-
-      {open && (
-        <div
-          style={{
-            padding: "0 20px 20px",
-            borderTop:
-              "1px solid rgba(255,255,255,.10)",
-          }}
-        >
-          {children}
-        </div>
-      )}
-    </div>
-  );
-}
-
-/* =========================================================
    MAIN
 ========================================================= */
 
@@ -207,7 +127,7 @@ export default function Admin() {
   const [msg, setMsg] = useState("");
 
   /* =======================================================
-     MATCH FORM
+     FORM
   ======================================================= */
 
   const [form, setForm] = useState({
@@ -238,20 +158,12 @@ export default function Admin() {
     allotted_overs: "",
   });
 
-  /* =======================================================
-     RESULT FORM
-  ======================================================= */
-
   const [resultForm, setResultForm] = useState({
     event_id: "",
     first: "",
     second: "",
     third: "",
   });
-
-  /* =======================================================
-     EVENT FORM
-  ======================================================= */
 
   const [eventForm, setEventForm] = useState({
     name: "",
@@ -473,11 +385,8 @@ export default function Admin() {
       String(event.id) === String(form.event_id)
   );
 
-  const cricketSelected =
-    isCricketEvent(selectedEvent);
-
-  const doublesSelected =
-    isDoublesEvent(selectedEvent);
+  const cricketSelected = isCricketEvent(selectedEvent);
+  const doublesSelected = isDoublesEvent(selectedEvent);
 
   /* =======================================================
      LOGIN
@@ -790,9 +699,7 @@ export default function Admin() {
       }
 
       setMsg("🏏 Cricket match created successfully.");
-    }
-
-    else if (doublesSelected) {
+    } else if (doublesSelected) {
       if (
         !form.player_a1.trim() ||
         !form.player_a2.trim() ||
@@ -827,9 +734,7 @@ export default function Admin() {
       }
 
       setMsg("👥 Doubles match created successfully.");
-    }
-
-    else {
+    } else {
       let winner = null;
 
       if (
@@ -840,10 +745,7 @@ export default function Admin() {
         const a = Number(form.score_a);
         const b = Number(form.score_b);
 
-        if (
-          Number.isFinite(a) &&
-          Number.isFinite(b)
-        ) {
+        if (Number.isFinite(a) && Number.isFinite(b)) {
           if (a > b) {
             winner = Number(form.club_a_id);
           } else if (b > a) {
@@ -1161,10 +1063,7 @@ export default function Admin() {
       const a = Number(scoreA);
       const b = Number(scoreB);
 
-      if (
-        Number.isFinite(a) &&
-        Number.isFinite(b)
-      ) {
+      if (Number.isFinite(a) && Number.isFinite(b)) {
         if (a > b) {
           winner = Number(match.club_a_id);
         } else if (b > a) {
@@ -1368,6 +1267,7 @@ export default function Admin() {
         <section className="wrap admin">
           <div className="card">
             <h2>🔐 Checking admin access...</h2>
+
             <p className="muted">
               Please wait.
             </p>
@@ -1378,7 +1278,7 @@ export default function Admin() {
   }
 
   /* =======================================================
-     LOGIN SCREEN
+     LOGIN
   ======================================================= */
 
   if (!user || !isAdmin) {
@@ -1486,10 +1386,9 @@ export default function Admin() {
             ADMIN ACCESS
         ================================================= */}
 
-        <CollapsibleSection
-          title="Admin Access"
-          icon="🔐"
-        >
+        <div className="card">
+          <h2>🔐 Admin Access</h2>
+
           <p className="muted">
             Logged in as:
             <br />
@@ -1563,16 +1462,15 @@ export default function Admin() {
               </div>
             ))
           )}
-        </CollapsibleSection>
+        </div>
 
         {/* =================================================
             ADD EVENT
         ================================================= */}
 
-        <CollapsibleSection
-          title="Add Sport / Event"
-          icon="➕"
-        >
+        <div className="card">
+          <h2>➕ Add Sport / Event</h2>
+
           <p className="muted">
             Add a new sport whenever required.
           </p>
@@ -1605,17 +1503,9 @@ export default function Admin() {
                   })
                 }
               >
-                <option value="Men's">
-                  Men's
-                </option>
-
-                <option value="Women's">
-                  Women's
-                </option>
-
-                <option value="Mixed">
-                  Mixed
-                </option>
+                <option value="Men's">Men's</option>
+                <option value="Women's">Women's</option>
+                <option value="Mixed">Mixed</option>
               </select>
             </label>
 
@@ -1631,18 +1521,11 @@ export default function Admin() {
                   })
                 }
               >
-                <option value="Team">
-                  Team
-                </option>
-
-                <option value="Doubles">
-                  Doubles
-                </option>
-
+                <option value="Team">Team</option>
+                <option value="Doubles">Doubles</option>
                 <option value="Mixed Doubles">
                   Mixed Doubles
                 </option>
-
                 <option value="Individual">
                   Individual
                 </option>
@@ -1653,17 +1536,13 @@ export default function Admin() {
               Add Sport / Event
             </button>
           </form>
-        </CollapsibleSection>
+        </div>
 
         {/* =================================================
             CREATE MATCH
         ================================================= */}
 
-        <CollapsibleSection
-          title="Create New Match"
-          icon="➕"
-          defaultOpen={true}
-        >
+        <div className="card">
           <h1>Admin Dashboard</h1>
 
           <p className="muted">
@@ -1790,7 +1669,9 @@ export default function Admin() {
                     </option>
 
                     {form.club_a_id && (
-                      <option value={form.club_a_id}>
+                      <option
+                        value={form.club_a_id}
+                      >
                         {clubs.find(
                           (c) =>
                             String(c.id) ===
@@ -1800,7 +1681,9 @@ export default function Admin() {
                     )}
 
                     {form.club_b_id && (
-                      <option value={form.club_b_id}>
+                      <option
+                        value={form.club_b_id}
+                      >
                         {clubs.find(
                           (c) =>
                             String(c.id) ===
@@ -2094,7 +1977,7 @@ export default function Admin() {
                 : "Create Match"}
             </button>
           </form>
-        </CollapsibleSection>
+        </div>
 
         {/* =================================================
             MESSAGE
@@ -2110,10 +1993,9 @@ export default function Admin() {
             FINALIZE RESULT
         ================================================= */}
 
-        <CollapsibleSection
-          title="Finalize Event Result"
-          icon="🏆"
-        >
+        <div className="card">
+          <h2>🏆 Finalize Event Result</h2>
+
           <form onSubmit={finalizeResult}>
             <label>
               Event
@@ -2228,16 +2110,15 @@ export default function Admin() {
               Finalize Result & Award Points
             </button>
           </form>
-        </CollapsibleSection>
+        </div>
 
         {/* =================================================
             EXISTING MATCHES
         ================================================= */}
 
-        <CollapsibleSection
-          title={`Existing Matches (${matches.length})`}
-          icon="🏟️"
-        >
+        <div className="card">
+          <h2>Existing Matches</h2>
+
           {loading ? (
             <p>Loading...</p>
           ) : matches.length === 0 ? (
@@ -2252,60 +2133,24 @@ export default function Admin() {
               const doubles =
                 isDoublesEvent(match.events);
 
-              const winnerName =
-                match.winner_club_id
-                  ? Number(match.winner_club_id) ===
-                    Number(match.club_a_id)
-                    ? match.club_a?.name
-                    : Number(match.winner_club_id) ===
-                      Number(match.club_b_id)
-                    ? match.club_b?.name
-                    : null
-                  : null;
-
               return (
-                <CollapsibleSection
+                <div
+                  className="adminMatch"
                   key={match.id}
-                  title={`${match.club_a?.name || "TBD"} vs ${
-                    match.club_b?.name || "TBD"
-                  }`}
-                  icon={
-                    match.status === "Final"
-                      ? "🏁"
-                      : match.status === "Live"
-                      ? "🔴"
-                      : "⏳"
-                  }
                 >
-                  <small
-                    style={{
-                      display: "block",
-                      marginBottom: "15px",
-                    }}
-                  >
+                  <b>
+                    {match.club_a?.name || "TBD"}
+                    {" vs "}
+                    {match.club_b?.name || "TBD"}
+                  </b>
+
+                  <small>
                     {match.events?.gender}
                     {" · "}
                     {match.events?.name}
                     {" · "}
                     {match.events?.category}
                   </small>
-
-                  {match.status === "Final" &&
-                    winnerName && (
-                      <div
-                        style={{
-                          padding: "12px 15px",
-                          marginBottom: "18px",
-                          borderRadius: "10px",
-                          background:
-                            "rgba(255,193,7,.12)",
-                          border:
-                            "1px solid rgba(255,193,7,.35)",
-                        }}
-                      >
-                        🏆 <b>Winner: {winnerName}</b>
-                      </div>
-                    )}
 
                   {cricket ? (
                     <>
@@ -2563,74 +2408,156 @@ export default function Admin() {
                   >
                     🗑️ Delete Match
                   </button>
-                </CollapsibleSection>
+                </div>
               );
             })
           )}
-        </CollapsibleSection>
+        </div>
 
         {/* =================================================
-            RESULTS
+            FINALIZED RESULTS
+            GROUPED + COLLAPSIBLE BY SPORT
         ================================================= */}
 
-        <CollapsibleSection
-          title={`Finalized Results (${results.length})`}
-          icon="🏆"
-        >
+        <div className="card">
+          <h2>🏆 Finalized Results</h2>
+
           {results.length === 0 ? (
             <p className="muted">
               No finalized results yet.
             </p>
           ) : (
-            results.map((result) => (
-              <div
-                className="adminMatch"
-                key={result.id}
-              >
-                <b>
-                  {result.position === 1
-                    ? "🥇"
-                    : result.position === 2
-                    ? "🥈"
-                    : "🥉"}{" "}
-                  {result.clubs?.name ||
-                    "Unknown Club"}
-                </b>
+            (() => {
+              const groupedResults = results.reduce(
+                (groups, result) => {
+                  const eventId = result.event_id;
 
-                <small>
-                  {result.events?.gender}
-                  {" · "}
-                  {result.events?.name}
-                  {" · "}
-                  {result.events?.category}
-                  {" — "}
-                  {result.points} points
-                </small>
-
-                <button
-                  style={{
-                    background: "#b42336",
-                    borderColor: "#b42336",
-                  }}
-                  onClick={() =>
-                    deleteResult(result.id)
+                  if (!groups[eventId]) {
+                    groups[eventId] = [];
                   }
-                >
-                  🗑️ Delete Result
-                </button>
-              </div>
-            ))
+
+                  groups[eventId].push(result);
+
+                  return groups;
+                },
+                {}
+              );
+
+              return Object.entries(groupedResults).map(
+                ([eventId, eventResults]) => {
+                  const event = eventResults[0]?.events;
+
+                  const sortedResults = [
+                    ...eventResults,
+                  ].sort(
+                    (a, b) =>
+                      Number(a.position) -
+                      Number(b.position)
+                  );
+
+                  return (
+                    <details
+                      key={eventId}
+                      style={{
+                        marginBottom: "14px",
+                        border:
+                          "1px solid rgba(255,255,255,.15)",
+                        borderRadius: "12px",
+                        overflow: "hidden",
+                        background:
+                          "rgba(255,255,255,.02)",
+                      }}
+                    >
+                      <summary
+                        style={{
+                          cursor: "pointer",
+                          padding: "18px",
+                          fontWeight: "700",
+                          fontSize: "17px",
+                          background:
+                            "rgba(255,255,255,.06)",
+                          listStylePosition: "inside",
+                        }}
+                      >
+                        🏆{" "}
+                        {event?.gender || ""}{" "}
+                        {event?.name ||
+                          "Unknown Event"}{" "}
+                        ·{" "}
+                        {event?.category || ""}
+                      </summary>
+
+                      <div
+                        style={{
+                          padding: "14px",
+                        }}
+                      >
+                        {sortedResults.map(
+                          (result) => (
+                            <div
+                              className="adminMatch"
+                              key={result.id}
+                              style={{
+                                marginBottom: "10px",
+                              }}
+                            >
+                              <b
+                                style={{
+                                  fontSize: "16px",
+                                }}
+                              >
+                                {result.position === 1
+                                  ? "🥇"
+                                  : result.position === 2
+                                  ? "🥈"
+                                  : "🥉"}{" "}
+                                {result.clubs?.name ||
+                                  "Unknown Club"}
+                              </b>
+
+                              <small>
+                                Position:{" "}
+                                {result.position}
+                                {" · "}
+                                <strong>
+                                  {result.points} points
+                                </strong>
+                              </small>
+
+                              <button
+                                style={{
+                                  background:
+                                    "#b42336",
+                                  borderColor:
+                                    "#b42336",
+                                }}
+                                onClick={() =>
+                                  deleteResult(
+                                    result.id
+                                  )
+                                }
+                              >
+                                🗑️ Delete Result
+                              </button>
+                            </div>
+                          )
+                        )}
+                      </div>
+                    </details>
+                  );
+                }
+              );
+            })()
           )}
-        </CollapsibleSection>
+        </div>
 
         {/* =================================================
             EVENTS
         ================================================= */}
 
-        <CollapsibleSection
-          title={`All Events (${events.length})`}
-          icon="📋"
-        >
+        <div className="card">
+          <h2>📋 All Events</h2>
+
           {events.length === 0 ? (
             <p className="muted">
               No events found.
@@ -2651,9 +2578,9 @@ export default function Admin() {
               </div>
             ))
           )}
-        </CollapsibleSection>
+        </div>
 
       </section>
     </main>
   );
-    }
+       }
