@@ -1,356 +1,672 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
 
-/* =========================================================
+const defaultClubs = [
+  "Falcons",
+  "Eagles",
+  "Thunderbirds",
+  "Griffins",
+  "Phoenix",
+];
+
+const eventGroups = {
+  "Men's Team Sports": [
+    "Cricket",
+    "Football",
+    "Volleyball",
+    "Basketball",
+    "Kho Kho",
+  ],
+  "Women's Team Sports": [
+    "Cricket",
+    "Throwball",
+    "Basketball",
+    "Kho Kho",
+  ],
+  "Men's Doubles": [
+    "Tennis",
+    "Table Tennis",
+    "Badminton",
+    "Carrom",
+  ],
+  "Women's Doubles": [
+    "Tennis",
+    "Table Tennis",
+    "Badminton",
+    "Carrom",
+  ],
+  "Mixed Doubles": ["Tennis"],
+  "Men's Individual": [
+    "Marathon",
+    "100m",
+    "200m",
+    "400m",
+    "Long Jump",
+    "Triple Jump",
+    "Table Tennis",
+    "Cycling",
+  ],
+  "Women's Individual": [
+    "Marathon",
+    "100m",
+    "200m",
+    "400m",
+    "Long Jump",
+    "Triple Jump",
+    "Table Tennis",
+    "Cycling",
+  ],
+};
+
+/* ============================================================
    HELPERS
-========================================================= */
+============================================================ */
 
-function normalize(value) {
-  return String(value || "").trim().toLowerCase();
+function isFinal(status) {
+  return String(status || "").toLowerCase() === "final";
 }
 
-function isCompleted(status) {
-  return [
-    "completed",
-    "complete",
-    "finished",
-    "final",
-    "result",
-  ].includes(normalize(status));
-}
-
-function isCricketEvent(event) {
+function isTeamEvent(event) {
   if (!event) return false;
 
-  const name = normalize(event.name);
-  const category = normalize(event.category);
-  const pointsType = normalize(event.points_type);
+  const category = String(event.category || "").toLowerCase();
+  const pointsType = String(event.points_type || "").toLowerCase();
 
   return (
-    name.includes("cricket") ||
-    category.includes("cricket") ||
-    pointsType.includes("cricket")
+    category.includes("team") ||
+    pointsType.includes("team")
   );
 }
 
-function isFootballEvent(event) {
-  if (!event) return false;
-
-  const name = normalize(event.name);
-  const category = normalize(event.category);
-
-  return (
-    name.includes("football") ||
-    category.includes("football")
-  );
-}
-
-function cricketOversToDecimal(value) {
+function numericScore(value) {
   if (
     value === null ||
     value === undefined ||
     value === ""
   ) {
-    return 0;
+    return null;
   }
 
   const text = String(value).trim();
 
+  if (!/^-?\d+(\.\d+)?$/.test(text)) {
+    return null;
+  }
+
+  const number = Number(text);
+
+  return Number.isFinite(number) ? number : null;
+}
+
+function cricketOversToNumber(value) {
+  if (
+    value === null ||
+    value === undefined ||
+    value === ""
+  ) {
+    return null;
+  }
+
+  const text = String(value).trim();
+
+  if (!text) return null;
+
   if (!text.includes(".")) {
-    const whole = Number(text);
-    return Number.isFinite(whole) ? whole : 0;
+    const overs = Number(text);
+
+    return Number.isFinite(overs) ? overs : null;
   }
 
   const parts = text.split(".");
 
-  const overs = Number(parts[0]) || 0;
-  const balls = Number(parts[1]) || 0;
+  const overs = Number(parts[0]);
+  const balls = Number(parts[1]);
 
-  if (balls < 0 || balls > 5) {
-    return overs;
+  if (
+    !Number.isFinite(overs) ||
+    !Number.isFinite(balls) ||
+    balls < 0 ||
+    balls > 5
+  ) {
+    return null;
   }
 
   return overs + balls / 6;
 }
 
-function parseScoreString(score) {
-  if (
-    score === null ||
-    score === undefined ||
-    score === ""
-  ) {
-    return {
-      value: 0,
-      secondary: 0,
-      overs: 0,
-    };
-  }
+function getCricketStats(match) {
+  const battingFirst =
+    match.batting_first_club_id !== null &&
+    match.batting_first_club_id !== undefined &&
+    match.batting_first_club_id !== ""
+      ? Number(match.batting_first_club_id)
+      : null;
 
-  const text = String(score).trim();
+  const clubA = Number(match.club_a_id);
+  const clubB = Number(match.club_b_id);
 
-  const cricketMatch = text.match(
-    /^(\d+)\s*\/\s*(\d+)?(?:\s*\(([\d.]+)\s*ov\))?/i
+  let firstRuns = numericScore(match.innings1_runs);
+  let secondRuns = numericScore(match.innings2_runs);
+
+  let firstOvers = cricketOversToNumber(
+    match.innings1_overs
   );
 
-  if (cricketMatch) {
-    return {
-      value: Number(cricketMatch[1]) || 0,
-      secondary: Number(cricketMatch[2]) || 0,
-      overs: cricketOversToDecimal(
-        cricketMatch[3]
-      ),
-    };
-  }
-
-  const dashMatch = text.match(
-    /^(\d+(?:\.\d+)?)\s*[-:]\s*(\d+(?:\.\d+)?)$/
+  let secondOvers = cricketOversToNumber(
+    match.innings2_overs
   );
 
-  if (dashMatch) {
-    return {
-      value: Number(dashMatch[1]) || 0,
-      secondary: Number(dashMatch[2]) || 0,
-      overs: 0,
-    };
+  if (firstRuns === null) {
+    firstRuns = numericScore(match.innings_a_runs);
   }
 
-  const numberMatch =
-    text.match(/-?\d+(?:\.\d+)?/);
-
-  return {
-    value: numberMatch
-      ? Number(numberMatch[0]) || 0
-      : 0,
-    secondary: 0,
-    overs: 0,
-  };
-}
-
-/* =========================================================
-   CRICKET
-========================================================= */
-
-function getCricketInnings(match, side) {
-  const runs =
-    side === "a"
-      ? match?.innings_a_runs
-      : match?.innings_b_runs;
-
-  const overs =
-    side === "a"
-      ? match?.innings_a_overs
-      : match?.innings_b_overs;
-
-  if (
-    runs !== null &&
-    runs !== undefined &&
-    runs !== ""
-  ) {
-    return {
-      runs: Number(runs) || 0,
-      overs: cricketOversToDecimal(overs),
-      rawOvers: overs,
-    };
+  if (secondRuns === null) {
+    secondRuns = numericScore(match.innings_b_runs);
   }
 
-  const score =
-    side === "a"
-      ? match?.score_a
-      : match?.score_b;
-
-  const parsed =
-    parseScoreString(score);
-
-  return {
-    runs: parsed.value,
-    overs: parsed.overs,
-    rawOvers: overs,
-  };
-}
-
-function getCricketScore(match, side) {
-  if (!match) return "—";
-
-  const original =
-    side === "a"
-      ? match?.score_a
-      : match?.score_b;
-
-  if (original) {
-    return original;
-  }
-
-  const innings =
-    getCricketInnings(
-      match,
-      side
-    );
-
-  if (!innings.runs) {
-    return "—";
-  }
-
-  return String(innings.runs);
-}
-
-function getMatchScore(match, side) {
-  if (!match) return "—";
-
-  if (
-    isCricketEvent(
-      match.events
-    )
-  ) {
-    return getCricketScore(
-      match,
-      side
+  if (firstOvers === null) {
+    firstOvers = cricketOversToNumber(
+      match.innings_a_overs
     );
   }
 
-  const score =
-    side === "a"
-      ? match.score_a
-      : match.score_b;
+  if (secondOvers === null) {
+    secondOvers = cricketOversToNumber(
+      match.innings_b_overs
+    );
+  }
 
-  return score || "—";
+  if (firstRuns === null && battingFirst === clubA) {
+    firstRuns = numericScore(match.runs_a);
+  }
+
+  if (firstRuns === null && battingFirst === clubB) {
+    firstRuns = numericScore(match.runs_b);
+  }
+
+  if (secondRuns === null && battingFirst === clubA) {
+    secondRuns = numericScore(match.runs_b);
+  }
+
+  if (secondRuns === null && battingFirst === clubB) {
+    secondRuns = numericScore(match.runs_a);
+  }
+
+  return {
+    battingFirst,
+    firstRuns,
+    secondRuns,
+    firstOvers,
+    secondOvers,
+  };
 }
 
-/* =========================================================
-   MATCH POINTS
-========================================================= */
+function getResultForClub(match, clubId) {
+  const club = Number(clubId);
 
-function getStoredMatchPoints(
-  match,
-  side
-) {
-  const keys =
-    side === "a"
-      ? [
-          "points_a",
-          "club_a_points",
-          "match_points_a",
-          "points_club_a",
-        ]
-      : [
-          "points_b",
-          "club_b_points",
-          "match_points_b",
-          "points_club_b",
-        ];
+  const clubA = Number(match.club_a_id);
+  const clubB = Number(match.club_b_id);
 
-  for (const key of keys) {
-    const value = match?.[key];
+  const winner =
+    match.winner_club_id === null ||
+    match.winner_club_id === undefined ||
+    match.winner_club_id === ""
+      ? null
+      : Number(match.winner_club_id);
+
+  if (winner !== null) {
+    return winner === club ? "win" : "loss";
+  }
+
+  const scoreA = numericScore(match.score_a);
+  const scoreB = numericScore(match.score_b);
+
+  if (scoreA !== null && scoreB !== null) {
+    if (scoreA === scoreB) {
+      return "draw";
+    }
+
+    if (club === clubA && scoreA > scoreB) {
+      return "win";
+    }
+
+    if (club === clubB && scoreB > scoreA) {
+      return "win";
+    }
+
+    return "loss";
+  }
+
+  const cricket = getCricketStats(match);
+
+  if (
+    cricket.firstRuns !== null &&
+    cricket.secondRuns !== null &&
+    cricket.battingFirst !== null
+  ) {
+    const firstClub = cricket.battingFirst;
+
+    const secondClub =
+      firstClub === clubA ? clubB : clubA;
+
+    if (cricket.firstRuns === cricket.secondRuns) {
+      return "draw";
+    }
 
     if (
-      value !== null &&
-      value !== undefined &&
-      value !== "" &&
-      !Number.isNaN(Number(value))
+      club === firstClub &&
+      cricket.firstRuns > cricket.secondRuns
     ) {
-      return Number(value);
+      return "win";
     }
+
+    if (
+      club === secondClub &&
+      cricket.secondRuns > cricket.firstRuns
+    ) {
+      return "win";
+    }
+
+    return "loss";
   }
 
-  return null;
+  return "no_result";
 }
 
-function getMatchPoints(
-  match,
-  side
-) {
-  if (
-    !isCompleted(
-      match?.status
-    )
-  ) {
+/* ============================================================
+   SPORT POINTS
+============================================================ */
+
+function getSportPoints(sport, result) {
+  const name = String(sport || "").toLowerCase();
+
+  if (name === "football") {
+    if (result === "win") return 3;
+    if (result === "draw") return 1;
     return 0;
   }
 
-  const stored =
-    getStoredMatchPoints(
-      match,
-      side
-    );
-
-  if (stored !== null) {
-    return stored;
+  if (name === "cricket") {
+    if (result === "win") return 2;
+    if (result === "no_result") return 1;
+    return 0;
   }
 
-  const event =
-    match?.events;
-
-  const football =
-    isFootballEvent(event);
-
-  const winnerId =
-    Number(
-      match?.winner_club_id
-    );
-
-  const clubId =
-    side === "a"
-      ? Number(match?.club_a_id)
-      : Number(match?.club_b_id);
-
-  if (
-    winnerId &&
-    clubId &&
-    winnerId === clubId
-  ) {
-    return football ? 3 : 2;
+  if (name === "volleyball") {
+    if (result === "win") return 3;
+    return 0;
   }
 
-  if (!winnerId) {
-    return 1;
+  if (name === "basketball") {
+    if (result === "win") return 2;
+    if (result === "loss") return 1;
+    return 0;
   }
+
+  if (name === "throwball") {
+    if (result === "win") return 2;
+    return 0;
+  }
+
+  if (name === "kho kho") {
+    if (result === "win") return 2;
+    if (result === "draw") return 1;
+    return 0;
+  }
+
+  if (result === "win") return 3;
+  if (result === "draw") return 1;
 
   return 0;
 }
 
-/* =========================================================
-   COMPONENT
-========================================================= */
+/* ============================================================
+   BUILD SPORT LEADERBOARD
+============================================================ */
+
+function buildSportLeaderboard(
+  sport,
+  eventId,
+  matches,
+  clubRows
+) {
+  const table = {};
+
+  clubRows.forEach((club) => {
+    table[club.id] = {
+      id: club.id,
+      name: club.name,
+
+      played: 0,
+      wins: 0,
+      draws: 0,
+      losses: 0,
+      noResults: 0,
+
+      pf: 0,
+      pa: 0,
+      pd: 0,
+
+      cricketRunsFor: 0,
+      cricketOversFor: 0,
+      cricketRunsAgainst: 0,
+      cricketOversAgainst: 0,
+
+      nrr: 0,
+
+      points: 0,
+    };
+  });
+
+  const completed = matches.filter(
+    (match) =>
+      isFinal(match.status) &&
+      Number(match.event_id) === Number(eventId)
+  );
+
+  completed.forEach((match) => {
+    const clubA = table[match.club_a_id];
+    const clubB = table[match.club_b_id];
+
+    if (!clubA || !clubB) return;
+
+    clubA.played += 1;
+    clubB.played += 1;
+
+    const resultA = getResultForClub(
+      match,
+      match.club_a_id
+    );
+
+    const resultB = getResultForClub(
+      match,
+      match.club_b_id
+    );
+
+    if (resultA === "win") clubA.wins += 1;
+    if (resultB === "win") clubB.wins += 1;
+
+    if (resultA === "draw") clubA.draws += 1;
+    if (resultB === "draw") clubB.draws += 1;
+
+    if (resultA === "loss") clubA.losses += 1;
+    if (resultB === "loss") clubB.losses += 1;
+
+    if (resultA === "no_result") clubA.noResults += 1;
+    if (resultB === "no_result") clubB.noResults += 1;
+
+    const scoreA = numericScore(match.score_a);
+    const scoreB = numericScore(match.score_b);
+
+    if (
+      scoreA !== null &&
+      scoreB !== null
+    ) {
+      clubA.pf += scoreA;
+      clubA.pa += scoreB;
+
+      clubB.pf += scoreB;
+      clubB.pa += scoreA;
+    }
+
+    if (
+      String(sport || "").toLowerCase() ===
+      "cricket"
+    ) {
+      const cricket = getCricketStats(match);
+
+      if (
+        cricket.battingFirst !== null &&
+        cricket.firstRuns !== null &&
+        cricket.secondRuns !== null &&
+        cricket.firstOvers !== null &&
+        cricket.secondOvers !== null
+      ) {
+        const firstClub =
+          cricket.battingFirst;
+
+        const secondClub =
+          firstClub === Number(match.club_a_id)
+            ? Number(match.club_b_id)
+            : Number(match.club_a_id);
+
+        const firstRow = table[firstClub];
+        const secondRow = table[secondClub];
+
+        if (firstRow && secondRow) {
+          firstRow.cricketRunsFor +=
+            cricket.firstRuns;
+
+          firstRow.cricketOversFor +=
+            cricket.firstOvers;
+
+          firstRow.cricketRunsAgainst +=
+            cricket.secondRuns;
+
+          firstRow.cricketOversAgainst +=
+            cricket.secondOvers;
+
+          secondRow.cricketRunsFor +=
+            cricket.secondRuns;
+
+          secondRow.cricketOversFor +=
+            cricket.secondOvers;
+
+          secondRow.cricketRunsAgainst +=
+            cricket.firstRuns;
+
+          secondRow.cricketOversAgainst +=
+            cricket.firstOvers;
+        }
+      }
+    }
+
+    clubA.points += getSportPoints(
+      sport,
+      resultA
+    );
+
+    clubB.points += getSportPoints(
+      sport,
+      resultB
+    );
+  });
+
+  Object.values(table).forEach((club) => {
+    club.pd = club.pf - club.pa;
+
+    if (
+      String(sport || "").toLowerCase() ===
+      "cricket"
+    ) {
+      if (
+        club.cricketOversFor > 0 &&
+        club.cricketOversAgainst > 0
+      ) {
+        const runRateFor =
+          club.cricketRunsFor /
+          club.cricketOversFor;
+
+        const runRateAgainst =
+          club.cricketRunsAgainst /
+          club.cricketOversAgainst;
+
+        club.nrr =
+          runRateFor - runRateAgainst;
+      } else {
+        club.nrr = 0;
+      }
+    }
+  });
+
+  const sportName =
+    String(sport || "").toLowerCase();
+
+  const rows = Object.values(table).sort(
+    (a, b) => {
+      if (b.points !== a.points) {
+        return b.points - a.points;
+      }
+
+      if (b.wins !== a.wins) {
+        return b.wins - a.wins;
+      }
+
+      if (sportName === "cricket") {
+        if (b.nrr !== a.nrr) {
+          return b.nrr - a.nrr;
+        }
+
+        return (
+          b.cricketRunsFor -
+          a.cricketRunsFor
+        );
+      }
+
+      if (b.pd !== a.pd) {
+        return b.pd - a.pd;
+      }
+
+      if (b.pf !== a.pf) {
+        return b.pf - a.pf;
+      }
+
+      return a.name.localeCompare(b.name);
+    }
+  );
+
+  return {
+    rows,
+    completedCount: completed.length,
+  };
+}
+
+function formatNumber(value) {
+  if (!Number.isFinite(Number(value))) {
+    return "0";
+  }
+
+  if (Number.isInteger(Number(value))) {
+    return Number(value);
+  }
+
+  return Number(value).toFixed(1);
+}
+
+function formatNRR(value) {
+  const number = Number(value || 0);
+
+  if (!Number.isFinite(number)) {
+    return "0.000";
+  }
+
+  if (number > 0) {
+    return `+${number.toFixed(3)}`;
+  }
+
+  return number.toFixed(3);
+}
+
+/* ============================================================
+   MAIN PAGE
+============================================================ */
 
 export default function Home() {
-  const [events, setEvents] =
-    useState([]);
+  const [matches, setMatches] = useState([]);
+  const [points, setPoints] = useState({});
+  const [events, setEvents] = useState([]);
+  const [clubRows, setClubRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [
+    selectedTeamSport,
+    setSelectedTeamSport,
+  ] = useState("");
 
-  const [clubs, setClubs] =
-    useState([]);
-
-  const [matches, setMatches] =
-    useState([]);
-
-  const [results, setResults] =
-    useState([]);
-
-  const [loading, setLoading] =
-    useState(true);
-
-  const [activeEvent, setActiveEvent] =
-    useState("all");
-
-  const [activeTab, setActiveTab] =
-    useState("matches");
-
-  const [msg, setMsg] =
-    useState("");
-
-  /* =======================================================
-     LOAD DATA
-  ======================================================= */
-
-  async function loadData() {
-    setMsg("");
+  async function load() {
+    setLoading(true);
 
     const [
-      eventResponse,
-      clubResponse,
-      matchResponse,
-      resultResponse,
+      {
+        data: matchData,
+        error: matchError,
+      },
+      {
+        data: resultData,
+        error: resultError,
+      },
+      {
+        data: eventData,
+        error: eventError,
+      },
+      {
+        data: clubData,
+        error: clubError,
+      },
     ] = await Promise.all([
+      supabase
+        .from("matches")
+        .select(`
+          id,
+          event_id,
+          club_a_id,
+          club_b_id,
+          score_a,
+          score_b,
+          status,
+          match_time,
+          winner_club_id,
+
+          batting_first_club_id,
+
+          innings1_runs,
+          innings1_wickets,
+          innings1_overs,
+
+          innings2_runs,
+          innings2_wickets,
+          innings2_overs,
+
+          runs_a,
+          wickets_a,
+          overs_a,
+
+          runs_b,
+          wickets_b,
+          overs_b,
+
+          allotted_overs,
+
+          innings_a_runs,
+          innings_a_overs,
+
+          innings_b_runs,
+          innings_b_overs,
+
+          events(
+            id,
+            name,
+            gender,
+            category,
+            points_type
+          ),
+
+          club_a:club_a_id(name),
+          club_b:club_b_id(name)
+        `)
+        .order("match_time", {
+          ascending: true,
+        }),
+
+      supabase
+        .from("event_results")
+        .select(`
+          club_id,
+          points,
+          clubs(name)
+        `),
+
       supabase
         .from("events")
         .select("*")
@@ -360,2657 +676,1624 @@ export default function Home() {
         .from("clubs")
         .select("*")
         .order("id"),
-
-      supabase
-        .from("matches")
-        .select(`
-          *,
-          events(
-            id,
-            name,
-            gender,
-            category,
-            points_type,
-            result_finalized
-          ),
-          club_a:club_a_id(
-            id,
-            name
-          ),
-          club_b:club_b_id(
-            id,
-            name
-          ),
-          winner:winner_club_id(
-            id,
-            name
-          )
-        `)
-        .order("id", {
-          ascending: false,
-        }),
-
-      supabase
-        .from("event_results")
-        .select(`
-          id,
-          event_id,
-          club_id,
-          position,
-          points,
-          events(
-            id,
-            name,
-            gender,
-            category,
-            result_finalized
-          ),
-          clubs(
-            id,
-            name
-          )
-        `)
-        .order("event_id")
-        .order("position"),
     ]);
 
-    if (eventResponse.error) {
-      console.error(
-        eventResponse.error
-      );
-      setMsg(
-        eventResponse.error.message
-      );
+    if (matchError) {
+      console.error("Matches error:", matchError);
     }
 
-    if (clubResponse.error) {
-      console.error(
-        clubResponse.error
-      );
-      setMsg(
-        clubResponse.error.message
-      );
+    if (resultError) {
+      console.error("Results error:", resultError);
     }
 
-    if (matchResponse.error) {
-      console.error(
-        matchResponse.error
-      );
-      setMsg(
-        matchResponse.error.message
-      );
+    if (eventError) {
+      console.error("Events error:", eventError);
     }
 
-    if (resultResponse.error) {
-      console.error(
-        resultResponse.error
-      );
-      setMsg(
-        resultResponse.error.message
-      );
+    if (clubError) {
+      console.error("Clubs error:", clubError);
     }
 
-    setEvents(
-      eventResponse.data || []
-    );
+    setMatches(matchData || []);
+    setEvents(eventData || []);
+    setClubRows(clubData || []);
 
-    setClubs(
-      clubResponse.data || []
-    );
+    const totals = {};
 
-    setMatches(
-      matchResponse.data || []
-    );
+    (resultData || []).forEach((result) => {
+      const name = result.clubs?.name;
 
-    /*
-      IMPORTANT:
+      if (name) {
+        totals[name] =
+          (totals[name] || 0) +
+          Number(result.points || 0);
+      }
+    });
 
-      Only finalized event_results
-      are loaded into `results`.
+    defaultClubs.forEach((club) => {
+      totals[club] = totals[club] || 0;
+    });
 
-      This means unfinished/deleted/non-finalized
-      events cannot contribute to Overall Points.
-    */
+    (clubData || []).forEach((club) => {
+      totals[club.name] =
+        totals[club.name] || 0;
+    });
 
-    const finalizedResults =
-      (resultResponse.data || []).filter(
-        (result) =>
-          result.events?.result_finalized === true
+    setPoints(totals);
+
+    const teamEvents =
+      (eventData || []).filter((event) =>
+        isTeamEvent(event)
       );
 
-    setResults(
-      finalizedResults
-    );
+    if (teamEvents.length > 0) {
+      setSelectedTeamSport((current) => {
+        if (
+          current &&
+          teamEvents.some(
+            (event) =>
+              String(event.id) ===
+              String(current)
+          )
+        ) {
+          return current;
+        }
+
+        return String(teamEvents[0].id);
+      });
+    } else {
+      setSelectedTeamSport("");
+    }
 
     setLoading(false);
   }
 
   useEffect(() => {
-    loadData();
+    load();
 
-    const interval =
-      setInterval(
-        loadData,
-        15000
-      );
+    const channel = supabase
+      .channel("euphoria-public-live")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "matches",
+        },
+        load
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "event_results",
+        },
+        load
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "events",
+        },
+        load
+      )
+      .subscribe();
 
-    return () =>
-      clearInterval(interval);
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
-  /* =======================================================
-     FILTERED MATCHES
-  ======================================================= */
+  const upcomingMatches =
+    matches.filter(
+      (match) =>
+        String(match.status || "").toLowerCase() ===
+        "upcoming"
+    );
 
-  const visibleMatches =
-    useMemo(() => {
-      if (
-        activeEvent === "all"
-      ) {
-        return matches;
-      }
+  const liveMatches =
+    matches.filter(
+      (match) =>
+        String(match.status || "").toLowerCase() ===
+        "live"
+    );
 
-      return matches.filter(
-        (match) =>
-          String(match.event_id) ===
-          String(activeEvent)
+  const completedMatches =
+    matches.filter((match) =>
+      isFinal(match.status)
+    );
+
+  const leaderboard = Object.keys(points).sort(
+    (a, b) =>
+      (points[b] || 0) -
+      (points[a] || 0)
+  );
+
+  const teamSports =
+    events.filter((event) =>
+      isTeamEvent(event)
+    );
+
+  const selectedEvent =
+    teamSports.find(
+      (event) =>
+        String(event.id) ===
+        String(selectedTeamSport)
+    );
+
+  let sportLeaderboard = {
+    rows: [],
+    completedCount: 0,
+  };
+
+  if (selectedEvent) {
+    sportLeaderboard =
+      buildSportLeaderboard(
+        selectedEvent.name,
+        selectedEvent.id,
+        matches,
+        clubRows
       );
-    }, [
-      matches,
-      activeEvent,
-    ]);
-
-  /* =======================================================
-     FILTERED RESULTS
-  ======================================================= */
-
-  const visibleResults =
-    useMemo(() => {
-      if (
-        activeEvent === "all"
-      ) {
-        return results;
-      }
-
-      return results.filter(
-        (result) =>
-          String(result.event_id) ===
-          String(activeEvent)
-      );
-    }, [
-      results,
-      activeEvent,
-    ]);
-
-  /* =======================================================
-     EVENT LEADERBOARDS
-  ======================================================= */
-
-  const eventLeaderboards =
-    useMemo(() => {
-      const groups = {};
-
-      events.forEach(
-        (event) => {
-          groups[event.id] = {
-            event,
-            clubs: {},
-            completedMatches: 0,
-          };
-
-          clubs.forEach(
-            (club) => {
-              groups[event.id].clubs[
-                club.id
-              ] = {
-                id: club.id,
-                name: club.name,
-
-                played: 0,
-                won: 0,
-                drawn: 0,
-                lost: 0,
-
-                points: 0,
-
-                pointsFor: 0,
-                pointsAgainst: 0,
-                pointsDifference: 0,
-
-                goalsFor: 0,
-                goalsAgainst: 0,
-                goalDifference: 0,
-
-                runsFor: 0,
-                runsAgainst: 0,
-                oversFor: 0,
-                oversAgainst: 0,
-                nrr: 0,
-              };
-            }
-          );
-        }
-      );
-
-      matches.forEach(
-        (match) => {
-          if (
-            !isCompleted(
-              match.status
-            )
-          ) {
-            return;
-          }
-
-          const eventId =
-            match.event_id;
-
-          if (
-            !groups[eventId]
-          ) {
-            return;
-          }
-
-          const group =
-            groups[eventId];
-
-          const clubA =
-            Number(
-              match.club_a_id
-            );
-
-          const clubB =
-            Number(
-              match.club_b_id
-            );
-
-          const winner =
-            Number(
-              match.winner_club_id
-            );
-
-          const A =
-            group.clubs[clubA];
-
-          const B =
-            group.clubs[clubB];
-
-          if (!A || !B) {
-            return;
-          }
-
-          group.completedMatches +=
-            1;
-
-          A.played += 1;
-          B.played += 1;
-
-          if (
-            winner &&
-            winner === clubA
-          ) {
-            A.won += 1;
-            B.lost += 1;
-          } else if (
-            winner &&
-            winner === clubB
-          ) {
-            B.won += 1;
-            A.lost += 1;
-          } else {
-            A.drawn += 1;
-            B.drawn += 1;
-          }
-
-          A.points +=
-            getMatchPoints(
-              match,
-              "a"
-            );
-
-          B.points +=
-            getMatchPoints(
-              match,
-              "b"
-            );
-
-          if (
-            isCricketEvent(
-              match.events
-            )
-          ) {
-            const inningsA =
-              getCricketInnings(
-                match,
-                "a"
-              );
-
-            const inningsB =
-              getCricketInnings(
-                match,
-                "b"
-              );
-
-            A.runsFor +=
-              inningsA.runs;
-
-            A.runsAgainst +=
-              inningsB.runs;
-
-            A.oversFor +=
-              inningsA.overs;
-
-            A.oversAgainst +=
-              inningsB.overs;
-
-            B.runsFor +=
-              inningsB.runs;
-
-            B.runsAgainst +=
-              inningsA.runs;
-
-            B.oversFor +=
-              inningsB.overs;
-
-            B.oversAgainst +=
-              inningsA.overs;
-          } else {
-            const parsedA =
-              parseScoreString(
-                match.score_a
-              );
-
-            const parsedB =
-              parseScoreString(
-                match.score_b
-              );
-
-            A.pointsFor +=
-              parsedA.value;
-
-            A.pointsAgainst +=
-              parsedB.value;
-
-            B.pointsFor +=
-              parsedB.value;
-
-            B.pointsAgainst +=
-              parsedA.value;
-          }
-        }
-      );
-
-      Object.values(groups)
-        .forEach(
-          (group) => {
-            Object.values(
-              group.clubs
-            ).forEach(
-              (club) => {
-                club.goalDifference =
-                  club.goalsFor -
-                  club.goalsAgainst;
-
-                club.pointsDifference =
-                  club.pointsFor -
-                  club.pointsAgainst;
-
-                if (
-                  club.oversFor > 0 &&
-                  club.oversAgainst > 0
-                ) {
-                  club.nrr =
-                    club.runsFor /
-                      club.oversFor -
-                    club.runsAgainst /
-                      club.oversAgainst;
-                } else {
-                  club.nrr = 0;
-                }
-
-                if (
-                  Math.abs(
-                    club.nrr
-                  ) < 0.000001
-                ) {
-                  club.nrr = 0;
-                }
-              }
-            );
-          }
-        );
-
-      return Object.values(groups)
-        .map(
-          (group) => {
-            const cricket =
-              isCricketEvent(
-                group.event
-              );
-
-            const football =
-              isFootballEvent(
-                group.event
-              );
-
-            const leaderboard =
-              Object.values(
-                group.clubs
-              )
-                .filter(
-                  (club) =>
-                    club.played > 0
-                )
-                .sort(
-                  (a, b) => {
-                    if (
-                      b.points !==
-                      a.points
-                    ) {
-                      return (
-                        b.points -
-                        a.points
-                      );
-                    }
-
-                    if (
-                      cricket &&
-                      Math.abs(
-                        b.nrr -
-                        a.nrr
-                      ) > 0.000001
-                    ) {
-                      return (
-                        b.nrr -
-                        a.nrr
-                      );
-                    }
-
-                    if (
-                      football &&
-                      b.goalDifference !==
-                      a.goalDifference
-                    ) {
-                      return (
-                        b.goalDifference -
-                        a.goalDifference
-                      );
-                    }
-
-                    if (
-                      !cricket &&
-                      !football &&
-                      b.pointsDifference !==
-                      a.pointsDifference
-                    ) {
-                      return (
-                        b.pointsDifference -
-                        a.pointsDifference
-                      );
-                    }
-
-                    if (
-                      b.won !==
-                      a.won
-                    ) {
-                      return (
-                        b.won -
-                        a.won
-                      );
-                    }
-
-                    return (
-                      b.played -
-                      a.played
-                    );
-                  }
-                );
-
-            return {
-              ...group,
-              cricket,
-              football,
-              leaderboard,
-            };
-          }
-        )
-        .filter(
-          (group) =>
-            activeEvent ===
-              "all" ||
-            String(
-              group.event.id
-            ) ===
-              String(
-                activeEvent
-              )
-        );
-    }, [
-      events,
-      clubs,
-      matches,
-      activeEvent,
-    ]);
-
-  /* =======================================================
-     CHAMPIONS
-  ======================================================= */
-
-  const champions =
-    useMemo(() => {
-      const list = [];
-
-      for (
-        const event of events
-      ) {
-        if (
-          event.result_finalized !==
-          true
-        ) {
-          continue;
-        }
-
-        const result =
-          results.find(
-            (r) =>
-              Number(r.event_id) ===
-                Number(event.id) &&
-              Number(r.position) ===
-                1
-          );
-
-        if (!result) {
-          continue;
-        }
-
-        list.push({
-          event,
-          result,
-          club: result.clubs,
-        });
-      }
-
-      if (
-        activeEvent !==
-        "all"
-      ) {
-        return list.filter(
-          (item) =>
-            String(
-              item.event.id
-            ) ===
-            String(
-              activeEvent
-            )
-        );
-      }
-
-      return list;
-    }, [
-      events,
-      results,
-      activeEvent,
-    ]);
-
-  /* =======================================================
-     ⭐ FIXED OVERALL STANDINGS
-     
-     THIS IS THE ONLY PART THAT SHOULD DETERMINE
-     THE OVERALL CLUB POINTS TABLE.
-     
-     It uses ONLY:
-     
-       event_results
-       
-     where:
-     
-       event.result_finalized === true
-     
-     Nothing else contributes.
-  ======================================================= */
-
-  const standings =
-    useMemo(() => {
-      const table = {};
-
-      /*
-        Start every existing club at ZERO.
-      */
-
-      clubs.forEach(
-        (club) => {
-          table[
-            Number(club.id)
-          ] = {
-            id: Number(club.id),
-            name: club.name,
-            points: 0,
-            gold: 0,
-            silver: 0,
-            bronze: 0,
-          };
-        }
-      );
-
-      /*
-        Add ONLY finalized event results.
-      */
-
-      results.forEach(
-        (result) => {
-          /*
-            Extra safety check.
-
-            Even though `results` is already filtered,
-            check again here so an accidentally stale
-            result cannot enter the table.
-          */
-
-          if (
-            result.events?.result_finalized !==
-            true
-          ) {
-            return;
-          }
-
-          const clubId =
-            Number(
-              result.club_id
-            );
-
-          if (!clubId) {
-            return;
-          }
-
-          /*
-            If club somehow isn't in the clubs table,
-            create it using the joined name.
-          */
-
-          if (
-            !table[clubId]
-          ) {
-            table[clubId] = {
-              id: clubId,
-              name:
-                result.clubs?.name ||
-                "Unknown Club",
-              points: 0,
-              gold: 0,
-              silver: 0,
-              bronze: 0,
-            };
-          }
-
-          /*
-            IMPORTANT:
-
-            Convert points explicitly to Number.
-          */
-
-          const points =
-            Number(
-              result.points
-            );
-
-          if (
-            Number.isFinite(points)
-          ) {
-            table[clubId].points +=
-              points;
-          }
-
-          const position =
-            Number(
-              result.position
-            );
-
-          if (
-            position === 1
-          ) {
-            table[clubId].gold += 1;
-          }
-
-          if (
-            position === 2
-          ) {
-            table[clubId].silver += 1;
-          }
-
-          if (
-            position === 3
-          ) {
-            table[clubId].bronze += 1;
-          }
-        }
-      );
-
-      /*
-        Sort:
-        1. Points
-        2. Gold
-        3. Silver
-        4. Bronze
-      */
-
-      return Object.values(
-        table
-      ).sort(
-        (a, b) => {
-          if (
-            b.points !==
-            a.points
-          ) {
-            return (
-              b.points -
-              a.points
-            );
-          }
-
-          if (
-            b.gold !==
-            a.gold
-          ) {
-            return (
-              b.gold -
-              a.gold
-            );
-          }
-
-          if (
-            b.silver !==
-            a.silver
-          ) {
-            return (
-              b.silver -
-              a.silver
-            );
-          }
-
-          return (
-            b.bronze -
-            a.bronze
-          );
-        }
-      );
-    }, [
-      clubs,
-      results,
-    ]);
-
-  /* =======================================================
-     GROUPED RESULTS
-  ======================================================= */
-
-  const groupedResults =
-    useMemo(() => {
-      const groups = {};
-
-      visibleResults.forEach(
-        (result) => {
-          if (
-            result.events
-              ?.result_finalized !==
-            true
-          ) {
-            return;
-          }
-
-          if (
-            !groups[
-              result.event_id
-            ]
-          ) {
-            groups[
-              result.event_id
-            ] = {
-              event:
-                result.events,
-              results: [],
-            };
-          }
-
-          groups[
-            result.event_id
-          ].results.push(
-            result
-          );
-        }
-      );
-
-      return Object.values(
-        groups
-      );
-    }, [
-      visibleResults,
-    ]);
-
-  /* =======================================================
-     RENDER
-     
-     UI BELOW IS KEPT THE SAME.
-  ======================================================= */
+  }
+
+  const selectedSportName =
+    String(
+      selectedEvent?.name || ""
+    ).toLowerCase();
+
+  const isCricket =
+    selectedSportName === "cricket";
+
+  const isFootball =
+    selectedSportName === "football";
+
+  const usesPD =
+    selectedSportName === "basketball" ||
+    selectedSportName === "volleyball";
+
+  function MatchCard({ match }) {
+    return (
+      <div className="match">
+        <div>
+          <b>
+            {match.club_a?.name || "TBD"}
+          </b>
+
+          <strong>
+            {match.score_a || "—"}
+          </strong>
+        </div>
+
+        <div>
+          <b>
+            {match.club_b?.name || "TBD"}
+          </b>
+
+          <strong>
+            {match.score_b || "—"}
+          </strong>
+        </div>
+
+        <small>
+          {match.events?.name}
+          {" · "}
+          {match.events?.gender}
+          {" · "}
+          {match.status}
+        </small>
+      </div>
+    );
+  }
+
+  function getMedal(index) {
+    if (index === 0) return "🥇";
+    if (index === 1) return "🥈";
+    if (index === 2) return "🥉";
+    return index + 1;
+  }
 
   return (
-    <>
-      <style jsx global>{`
+    <main>
 
-        * {
-          box-sizing: border-box;
-        }
+      <style jsx>{`
 
-        html {
-          scroll-behavior: smooth;
-        }
+        /* ======================================================
+           PREMIUM LEADERBOARD
+        ====================================================== */
 
-        body {
-          margin: 0;
-          font-family:
-            Inter,
-            system-ui,
-            -apple-system,
-            BlinkMacSystemFont,
-            "Segoe UI",
-            sans-serif;
+        .leaderboardShell {
+          position: relative;
+          margin-top: 26px;
+          padding: 28px;
+          border-radius: 28px;
+          overflow: hidden;
 
           background:
             radial-gradient(
-              circle at top,
-              #251445 0%,
-              #0b0714 42%,
-              #05030a 100%
-            );
+              circle at 10% 0%,
+              rgba(140, 80, 255, 0.24),
+              transparent 32%
+            ),
+            radial-gradient(
+              circle at 90% 100%,
+              rgba(0, 210, 255, 0.16),
+              transparent 32%
+            ),
+            rgba(18, 20, 38, 0.72);
 
-          color: #ffffff;
-          min-height: 100vh;
-        }
-
-        button,
-        select {
-          font: inherit;
-        }
-
-        a {
-          color: inherit;
-          text-decoration: none;
-        }
-
-        .page {
-          min-height: 100vh;
-        }
-
-        header {
-          position: sticky;
-          top: 0;
-          z-index: 50;
-
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-
-          padding: 18px 6%;
-
-          background:
-            rgba(7,4,14,0.88);
-
-          backdrop-filter: blur(18px);
-
-          border-bottom:
-            1px solid
-            rgba(255,255,255,0.09);
-        }
-
-        .logo {
-          font-size: 24px;
-          font-weight: 900;
-          letter-spacing: 3px;
-        }
-
-        .logo span {
-          color: #d7a7ff;
-        }
-
-        .adminLink {
-          padding: 10px 16px;
-          border-radius: 999px;
-
-          border:
-            1px solid
-            rgba(255,255,255,0.15);
-
-          color: #ddd;
-
-          font-size: 13px;
-          font-weight: 700;
-        }
-
-        .adminLink:hover {
-          background:
-            rgba(255,255,255,0.08);
-        }
-
-        .hero {
-          padding:
-            80px 6%
-            55px;
-
-          text-align: center;
-        }
-
-        .heroBadge {
-          display: inline-flex;
-          align-items: center;
-
-          padding: 8px 14px;
-
-          border-radius: 999px;
-
-          background:
-            rgba(190,105,255,0.13);
-
-          border:
-            1px solid
-            rgba(207,145,255,0.28);
-
-          color: #e8caff;
-
-          font-size: 12px;
-          font-weight: 800;
-
-          letter-spacing: 1px;
-          text-transform: uppercase;
-        }
-
-        .hero h1 {
-          margin:
-            20px 0 10px;
-
-          font-size:
-            clamp(42px,9vw,88px);
-
-          line-height: 0.95;
-          letter-spacing: -3px;
-
-          background:
-            linear-gradient(
-              100deg,
-              #ffffff,
-              #d7a4ff,
-              #ffffff
-            );
-
-          -webkit-background-clip: text;
-          color: transparent;
-        }
-
-        .hero p {
-          max-width: 650px;
-          margin: 20px auto 0;
-
-          color: #aaa2b6;
-
-          font-size: 17px;
-          line-height: 1.7;
-        }
-
-        .container {
-          width:
-            min(1200px,92%);
-
-          margin: 0 auto;
-          padding-bottom: 80px;
-        }
-
-        .eventBar {
-          display: flex;
-          gap: 10px;
-
-          overflow-x: auto;
-
-          padding:
-            6px 2px
-            20px;
-
-          scrollbar-width: none;
-        }
-
-        .eventBar::-webkit-scrollbar {
-          display: none;
-        }
-
-        .eventButton {
-          flex-shrink: 0;
-
-          padding:
-            11px 17px;
-
-          border-radius: 999px;
-
-          border:
-            1px solid
-            rgba(255,255,255,0.12);
-
-          background:
-            rgba(255,255,255,0.045);
-
-          color: #aaa;
-
-          cursor: pointer;
-
-          font-size: 13px;
-          font-weight: 800;
-        }
-
-        .eventButton.active {
-          background:
-            linear-gradient(
-              135deg,
-              #a84dff,
-              #6d27d9
-            );
-
-          color: white;
-
-          border-color:
-            rgba(255,255,255,0.2);
+          border: 1px solid
+            rgba(255, 255, 255, 0.13);
 
           box-shadow:
-            0 8px 30px
-            rgba(130,50,230,0.25);
+            0 25px 70px
+              rgba(0, 0, 0, 0.28),
+            inset 0 1px 0
+              rgba(255, 255, 255, 0.08);
+
+          backdrop-filter: blur(22px);
+          -webkit-backdrop-filter: blur(22px);
         }
 
-        .tabs {
-          display: grid;
+        .leaderboardGlow {
+          position: absolute;
+          width: 180px;
+          height: 180px;
+          border-radius: 50%;
+          right: -80px;
+          top: -80px;
 
-          grid-template-columns:
-            repeat(5,1fr);
+          background: rgba(
+            140,
+            80,
+            255,
+            0.18
+          );
 
-          gap: 8px;
-
-          margin:
-            15px 0
-            30px;
-
-          padding: 6px;
-
-          border-radius: 14px;
-
-          background:
-            rgba(255,255,255,0.045);
-
-          border:
-            1px solid
-            rgba(255,255,255,0.07);
+          filter: blur(45px);
+          pointer-events: none;
         }
 
-        .tab {
-          border: 0;
-
-          padding:
-            13px 8px;
-
-          border-radius: 10px;
-
-          background: transparent;
-
-          color: #999;
-
-          cursor: pointer;
-
-          font-weight: 800;
-          font-size: 13px;
-        }
-
-        .tab.active {
-          background:
-            rgba(255,255,255,0.1);
-
-          color: white;
-        }
-
-        .sectionTitle {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-
-          gap: 15px;
-
-          margin:
-            35px 0
-            18px;
-        }
-
-        .sectionTitle h2 {
-          margin: 0;
-          font-size: 24px;
-        }
-
-        .sectionTitle span {
-          color: #777;
-          font-size: 13px;
-        }
-
-        .card {
-          padding: 22px;
-          margin-bottom: 15px;
-
-          border-radius: 18px;
-
-          background:
-            linear-gradient(
-              145deg,
-              rgba(255,255,255,0.065),
-              rgba(255,255,255,0.025)
-            );
-
-          border:
-            1px solid
-            rgba(255,255,255,0.09);
-
-          box-shadow:
-            0 15px 50px
-            rgba(0,0,0,0.18);
-        }
-
-        .matchCard {
+        .leaderboardHeading {
           position: relative;
-        }
-
-        .matchTop {
           display: flex;
-          align-items: center;
-          justify-content: space-between;
-
-          gap: 12px;
-          margin-bottom: 20px;
-        }
-
-        .eventName {
-          color: #aaa;
-          font-size: 12px;
-          font-weight: 700;
-        }
-
-        .status {
-          padding: 5px 10px;
-          border-radius: 999px;
-
-          font-size: 10px;
-          font-weight: 900;
-
-          letter-spacing: 0.7px;
-          text-transform: uppercase;
-        }
-
-        .status-final,
-        .status-completed,
-        .status-complete,
-        .status-finished {
-          background:
-            rgba(100,220,130,0.12);
-
-          color: #7af59b;
-        }
-
-        .status-live {
-          background:
-            rgba(255,65,95,0.13);
-
-          color: #ff7188;
-
-          animation:
-            pulse 1.6s infinite;
-        }
-
-        .status-upcoming {
-          background:
-            rgba(255,190,80,0.12);
-
-          color: #ffc75c;
-        }
-
-        @keyframes pulse {
-          50% {
-            opacity: 0.45;
-          }
-        }
-
-        .teams {
-          display: grid;
-
-          grid-template-columns:
-            1fr auto 1fr;
-
-          align-items: center;
-
-          gap: 15px;
-        }
-
-        .team {
-          display: flex;
-          flex-direction: column;
-          gap: 7px;
-        }
-
-        .team.right {
-          text-align: right;
           align-items: flex-end;
-        }
-
-        .teamName {
-          font-size: 17px;
-          font-weight: 850;
-        }
-
-        .score {
-          color: #d5b5ff;
-          font-size: 22px;
-          font-weight: 900;
-        }
-
-        .winner {
-          color: #ffd66b;
-        }
-
-        .vs {
-          color: #5f5867;
-          font-size: 12px;
-          font-weight: 900;
-        }
-
-        .matchMeta {
-          margin-top: 18px;
-          padding-top: 14px;
-
-          border-top:
-            1px solid
-            rgba(255,255,255,0.06);
-
-          color: #777;
-
-          font-size: 11px;
-          text-align: center;
-        }
-
-        .leaderboardCard {
-          margin-bottom: 25px;
-          overflow: hidden;
-
-          border-radius: 20px;
-
-          background:
-            linear-gradient(
-              145deg,
-              rgba(255,255,255,0.065),
-              rgba(255,255,255,0.025)
-            );
-
-          border:
-            1px solid
-            rgba(255,255,255,0.09);
-        }
-
-        .leaderboardHeader {
-          display: flex;
-          align-items: center;
           justify-content: space-between;
-
-          gap: 15px;
-
-          padding: 22px;
-
-          background:
-            rgba(255,255,255,0.035);
-
-          border-bottom:
-            1px solid
-            rgba(255,255,255,0.07);
+          gap: 20px;
+          margin-bottom: 24px;
         }
 
         .leaderboardTitle {
-          font-size: 19px;
-          font-weight: 900;
+          margin: 0;
+          font-size: clamp(
+            26px,
+            4vw,
+            38px
+          );
+          letter-spacing: -0.8px;
         }
 
         .leaderboardSubtitle {
-          margin-top: 5px;
-          color: #777;
-          font-size: 11px;
-        }
-
-        .matchCount {
-          flex-shrink: 0;
-
-          padding: 7px 11px;
-
-          border-radius: 999px;
-
-          background:
-            rgba(170,80,255,0.12);
-
-          color: #d3a7ff;
-
-          font-size: 10px;
-          font-weight: 900;
-        }
-
-        .leaderboardTable {
-          overflow-x: auto;
-        }
-
-        .leaderboardTable table {
-          min-width: 900px;
-        }
-
-        .leaderboardTable tr:first-child td {
-          background:
-            rgba(255,211,100,0.035);
-        }
-
-        .leaderRank {
-          font-weight: 950;
-          color: #777;
-        }
-
-        .leaderClub {
-          font-weight: 850;
-        }
-
-        .leaderPoints {
-          color: #d3a7ff;
-          font-weight: 950;
-          font-size: 17px;
-        }
-
-        .metric {
-          font-weight: 750;
-        }
-
-        .positive {
-          color: #78e69a;
-        }
-
-        .negative {
-          color: #ff778d;
-        }
-
-        .neutral {
-          color: #aaa;
-        }
-
-        .goldRank {
-          color: #ffd66b;
-        }
-
-        .silverRank {
-          color: #c9c9d0;
-        }
-
-        .bronzeRank {
-          color: #d59b6a;
-        }
-
-        .championGrid {
-          display: grid;
-
-          grid-template-columns:
-            repeat(
-              auto-fit,
-              minmax(260px,1fr)
-            );
-
-          gap: 16px;
-        }
-
-        .championCard {
-          position: relative;
-          overflow: hidden;
-
-          padding: 28px;
-
-          border-radius: 22px;
-
-          background:
-            radial-gradient(
-              circle at top right,
-              rgba(255,194,72,0.16),
-              transparent 45%
-            ),
-            linear-gradient(
-              145deg,
-              rgba(255,255,255,0.08),
-              rgba(255,255,255,0.025)
-            );
-
-          border:
-            1px solid
-            rgba(255,210,100,0.2);
-        }
-
-        .trophy {
-          font-size: 48px;
-        }
-
-        .championLabel {
-          margin-top: 12px;
-
-          color: #d2a5ff;
-
-          font-size: 11px;
-          font-weight: 900;
-
-          letter-spacing: 2px;
-          text-transform: uppercase;
-        }
-
-        .championName {
-          margin-top: 8px;
-
-          font-size: 26px;
-          font-weight: 950;
-        }
-
-        .championEvent {
-          margin-top: 7px;
-
-          color: #89818f;
+          margin: 7px 0 0;
+          opacity: 0.58;
           font-size: 13px;
         }
 
-        .finalizedBadge {
-          display: inline-block;
-
-          margin-top: 16px;
-
-          padding: 6px 10px;
-
+        .sportBadge {
+          padding: 9px 14px;
           border-radius: 999px;
 
-          background:
-            rgba(80,210,120,0.1);
+          background: rgba(
+            255,
+            255,
+            255,
+            0.07
+          );
 
-          color: #77e69a;
+          border: 1px solid
+            rgba(255, 255, 255, 0.11);
 
-          font-size: 10px;
-          font-weight: 900;
-        }
-
-        .podiumGrid {
-          display: grid;
-
-          grid-template-columns:
-            repeat(
-              auto-fit,
-              minmax(250px,1fr)
-            );
-
-          gap: 15px;
-        }
-
-        .podiumCard {
-          padding: 22px;
-
-          border-radius: 18px;
-
-          background:
-            rgba(255,255,255,0.04);
-
-          border:
-            1px solid
-            rgba(255,255,255,0.07);
-        }
-
-        .podiumPosition {
-          font-size: 30px;
-        }
-
-        .podiumClub {
-          margin-top: 10px;
-
-          font-size: 19px;
-          font-weight: 850;
-        }
-
-        .podiumEvent {
-          margin-top: 5px;
-
-          color: #888;
           font-size: 12px;
+          font-weight: 800;
+          white-space: nowrap;
         }
 
-        .podiumPoints {
-          margin-top: 13px;
-
-          color: #d2a5ff;
-
-          font-size: 13px;
-          font-weight: 850;
-        }
-
-        .tableWrap {
-          overflow-x: auto;
-
-          border-radius: 18px;
-
-          border:
-            1px solid
-            rgba(255,255,255,0.08);
-        }
-
-        table {
+        .leaderboardSelect {
           width: 100%;
+          max-width: 430px;
+          padding: 13px 15px;
+          margin-top: 9px;
 
-          border-collapse: collapse;
+          border-radius: 13px;
+          border: 1px solid
+            rgba(255, 255, 255, 0.13);
 
-          min-width: 620px;
-        }
+          background: rgba(
+            255,
+            255,
+            255,
+            0.07
+          );
 
-        th {
-          padding: 14px;
-
-          background:
-            rgba(255,255,255,0.045);
-
-          color: #777;
-
-          font-size: 10px;
-
-          text-transform: uppercase;
-
-          letter-spacing: 1px;
-
-          text-align: left;
-        }
-
-        td {
-          padding: 17px 14px;
-
-          border-top:
-            1px solid
-            rgba(255,255,255,0.055);
-
+          color: inherit;
+          outline: none;
           font-size: 14px;
         }
 
-        .rank {
-          color: #777;
-          font-weight: 900;
+        /* TOP THREE */
+
+        .podium {
+          position: relative;
+          display: grid;
+          grid-template-columns:
+            1fr 1.12fr 1fr;
+          gap: 14px;
+          align-items: end;
+          margin: 26px 0;
         }
 
-        .points {
-          color: #d3a7ff;
+        .podiumCard {
+          position: relative;
+          min-height: 135px;
+          padding: 20px;
+          border-radius: 22px;
+
+          display: flex;
+          flex-direction: column;
+          justify-content: space-between;
+
+          text-align: center;
+
+          background:
+            linear-gradient(
+              145deg,
+              rgba(255,255,255,0.105),
+              rgba(255,255,255,0.035)
+            );
+
+          border: 1px solid
+            rgba(255,255,255,0.12);
+
+          box-shadow:
+            0 14px 35px
+              rgba(0,0,0,0.18);
+        }
+
+        .podiumCard.first {
+          min-height: 170px;
+          transform: translateY(-8px);
+
+          background:
+            linear-gradient(
+              145deg,
+              rgba(255,215,80,0.17),
+              rgba(255,255,255,0.045)
+            );
+
+          border-color:
+            rgba(255,215,80,0.28);
+        }
+
+        .podiumMedal {
+          font-size: 29px;
+        }
+
+        .podiumPosition {
+          font-size: 10px;
+          opacity: 0.5;
+          letter-spacing: 1.5px;
+          font-weight: 800;
+        }
+
+        .podiumClub {
+          font-size: 17px;
+          font-weight: 900;
+          margin-top: 5px;
+        }
+
+        .podiumPoints {
+          font-size: 28px;
+          font-weight: 950;
+          line-height: 1;
+        }
+
+        .podiumPts {
+          font-size: 9px;
+          opacity: 0.5;
+          margin-top: 4px;
+          letter-spacing: 1px;
+        }
+
+        /* TABLE */
+
+        .standingsFrame {
+          position: relative;
+          overflow: hidden;
+
+          border-radius: 20px;
+          border: 1px solid
+            rgba(255,255,255,0.10);
+
+          background: rgba(
+            0,
+            0,
+            0,
+            0.13
+          );
+        }
+
+        .standingsTable {
+          width: 100%;
+          border-collapse: collapse;
+          table-layout: fixed;
+        }
+
+        .standingsTable th {
+          padding: 14px 10px;
+          text-align: center;
+
+          font-size: 10px;
+          letter-spacing: 1.2px;
+          font-weight: 800;
+
+          color: rgba(
+            255,
+            255,
+            255,
+            0.55
+          );
+
+          background: rgba(
+            255,
+            255,
+            255,
+            0.045
+          );
+
+          border-bottom: 1px solid
+            rgba(255,255,255,0.08);
+        }
+
+        .standingsTable td {
+          padding: 17px 10px;
+          text-align: center;
+
+          font-size: 14px;
+
+          border-bottom: 1px solid
+            rgba(255,255,255,0.065);
+        }
+
+        .standingsTable tbody tr {
+          transition:
+            background 0.2s ease,
+            transform 0.2s ease;
+        }
+
+        .standingsTable tbody tr:hover {
+          background: rgba(
+            255,
+            255,
+            255,
+            0.055
+          );
+        }
+
+        .standingsTable td.clubCell {
+          text-align: left;
+          font-weight: 850;
+          font-size: 15px;
+        }
+
+        .positionCell {
+          font-weight: 900;
+          font-size: 17px !important;
+        }
+
+        .pointsCell {
+          font-weight: 950;
+          font-size: 18px !important;
+        }
+
+        .leaderRow {
+          background:
+            linear-gradient(
+              90deg,
+              rgba(255,215,80,0.10),
+              rgba(255,255,255,0.025)
+            );
+        }
+
+        .secondRow {
+          background:
+            rgba(
+              255,
+              255,
+              255,
+              0.025
+            );
+        }
+
+        .thirdRow {
+          background:
+            rgba(
+              255,
+              255,
+              255,
+              0.018
+            );
+        }
+
+        .tableLegend {
+          margin-top: 13px;
+          font-size: 11px;
+          line-height: 1.7;
+          opacity: 0.55;
+        }
+
+        /* MOBILE */
+
+        .mobileStandings {
+          display: none;
+        }
+
+        .mobileStandingRow {
+          display: grid;
+
+          grid-template-columns:
+            48px minmax(0, 1fr) 72px;
+
+          align-items: center;
+          gap: 10px;
+
+          min-height: 82px;
+          padding: 12px 14px;
+
+          border-bottom: 1px solid
+            rgba(255,255,255,0.065);
+
+          box-sizing: border-box;
+        }
+
+        .mobileStandingRow:last-child {
+          border-bottom: none;
+        }
+
+        .mobileStandingRow.first {
+          background:
+            linear-gradient(
+              90deg,
+              rgba(255,215,80,0.11),
+              transparent
+            );
+        }
+
+        .mobileStandingRank {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+
+          width: 42px;
+          height: 42px;
+
+          border-radius: 13px;
+
+          background:
+            rgba(
+              255,
+              255,
+              255,
+              0.065
+            );
+
+          font-weight: 900;
+          font-size: 16px;
+        }
+
+        .mobileStandingClub {
+          min-width: 0;
+        }
+
+        .mobileStandingClubName {
+          font-size: 16px;
+          font-weight: 900;
+
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .mobileStandingStats {
+          display: flex;
+          gap: 8px;
+          flex-wrap: wrap;
+
+          margin-top: 6px;
+
+          font-size: 10px;
+          opacity: 0.58;
+        }
+
+        .mobileStandingExtra {
+          margin-top: 4px;
+          font-size: 10px;
+          opacity: 0.65;
+        }
+
+        .mobileStandingPoints {
+          text-align: right;
+        }
+
+        .mobileStandingPoints strong {
+          display: block;
+          font-size: 23px;
+          line-height: 1;
           font-weight: 950;
         }
 
-        .empty {
-          padding: 55px 20px;
+        .mobileStandingPoints small {
+          display: block;
+          margin-top: 5px;
+          font-size: 8px;
+          letter-spacing: 1px;
+          opacity: 0.5;
+        }
+
+        /* ======================================================
+           OVERALL CHAMPIONSHIP
+        ====================================================== */
+
+        .overallChampionship {
+          position: relative;
+          overflow: hidden;
+
+          margin-top: 24px;
+          padding: 25px;
+
+          border-radius: 24px;
+
+          background:
+            linear-gradient(
+              145deg,
+              rgba(124,76,255,0.16),
+              rgba(255,255,255,0.035)
+            );
+
+          border: 1px solid
+            rgba(255,255,255,0.10);
+
+          box-shadow:
+            0 18px 50px
+              rgba(0,0,0,0.20);
+        }
+
+        .overallRow {
+          display: grid;
+          grid-template-columns:
+            45px minmax(0,1fr) 80px;
+
+          align-items: center;
+          gap: 12px;
+
+          min-height: 65px;
+          padding: 9px 12px;
+
+          border-bottom: 1px solid
+            rgba(255,255,255,0.07);
+        }
+
+        .overallRow:last-child {
+          border-bottom: none;
+        }
+
+        .overallPosition {
           text-align: center;
-          color: #777;
+          font-size: 19px;
+          font-weight: 900;
         }
 
-        .emptyIcon {
-          font-size: 38px;
-          margin-bottom: 10px;
+        .overallClub {
+          font-weight: 850;
+          font-size: 15px;
         }
 
-        footer {
-          padding: 40px 6%;
-
-          border-top:
-            1px solid
-            rgba(255,255,255,0.06);
-
-          text-align: center;
-
-          color: #555;
-          font-size: 12px;
+        .overallPoints {
+          text-align: right;
+          font-size: 22px;
+          font-weight: 950;
         }
 
-        @media (max-width:800px) {
-          .tabs {
+        /* ======================================================
+           MOBILE
+        ====================================================== */
+
+        @media (max-width: 700px) {
+
+          .leaderboardShell {
+            padding: 18px;
+            border-radius: 22px;
+          }
+
+          .leaderboardHeading {
+            display: block;
+          }
+
+          .sportBadge {
+            display: inline-block;
+            margin-top: 14px;
+          }
+
+          .podium {
             grid-template-columns:
-              repeat(2,1fr);
-          }
-        }
-
-        @media (max-width:650px) {
-          header {
-            padding: 15px 5%;
+              1fr 1fr;
+            gap: 10px;
           }
 
-          .logo {
-            font-size: 19px;
-            letter-spacing: 2px;
+          .podiumCard {
+            min-height: 125px;
+            padding: 15px 10px;
           }
 
-          .adminLink {
-            padding: 8px 12px;
-            font-size: 10px;
+          .podiumCard.first {
+            grid-column: 1 / -1;
+            min-height: 145px;
+            transform: none;
           }
 
-          .hero {
-            padding:
-              55px 5%
-              40px;
+          .podiumClub {
+            font-size: 15px;
           }
 
-          .hero h1 {
-            font-size: 54px;
+          .podiumPoints {
+            font-size: 24px;
           }
 
-          .hero p {
-            font-size: 14px;
+          .standingsFrame {
+            border-radius: 17px;
           }
 
-          .container {
-            width: 92%;
+          .standingsDesktop {
+            display: none;
           }
 
-          .teams {
-            gap: 8px;
+          .mobileStandings {
+            display: block;
           }
 
-          .teamName {
-            font-size: 14px;
+          .leaderboardShell .tableLegend {
+            padding: 0 4px;
           }
 
-          .score {
-            font-size: 18px;
+          .overallChampionship {
+            padding: 18px;
           }
 
-          .card {
-            padding: 17px;
+          .overallRow {
+            grid-template-columns:
+              40px minmax(0,1fr) 65px;
           }
 
-          .leaderboardHeader {
-            padding: 17px;
-          }
-
-          .sectionTitle {
-            align-items: flex-start;
-            flex-direction: column;
+          .overallPoints {
+            font-size: 20px;
           }
         }
 
       `}</style>
 
-      <div className="page">
+      {/* ======================================================
+          HEADER
+      ====================================================== */}
 
-        <header>
-          <div className="logo">
-            EUPHORIA{" "}
-            <span>2026</span>
-          </div>
+      <header>
+        <div className="logo">
+          EUPHORIA{" "}
+          <span>SPORTS</span>
+        </div>
 
-          <a
-            href="/admin"
-            className="adminLink"
-          >
-            ADMIN
-          </a>
-        </header>
+        <a href="/admin">
+          ADMIN
+        </a>
+      </header>
 
-        <section className="hero">
+      {/* ======================================================
+          HERO
+      ====================================================== */}
 
-          <div className="heroBadge">
-            🏆 Inter-Club Sports Fest
-          </div>
+      <section className="hero">
+        <small>
+          INTER-CLUB SPORTS CHAMPIONSHIP
+        </small>
 
-          <h1>
-            EUPHORIA
-          </h1>
+        <h1>
+          THE GAME
+          <br />
+          IS ON.
+        </h1>
 
-          <p>
-            Follow every match,
-            live score, event
-            leaderboard, official
-            result and championship
-            across EUPHORIA.
-          </p>
+        <p>
+          Live scores, results and
+          the race for the Euphoria
+          Club Championship.
+        </p>
+      </section>
 
-        </section>
+      <section className="wrap">
 
-        <main className="container">
+        {/* ====================================================
+            LIVE + UPCOMING
+        ==================================================== */}
 
-          <div className="eventBar">
+        <div className="grid">
 
-            <button
-              className={
-                activeEvent === "all"
-                  ? "eventButton active"
-                  : "eventButton"
-              }
-              onClick={() =>
-                setActiveEvent("all")
-              }
-            >
-              All Events
-            </button>
-
-            {events.map(
-              (event) => (
-                <button
-                  key={event.id}
-                  className={
-                    String(
-                      activeEvent
-                    ) ===
-                    String(event.id)
-                      ? "eventButton active"
-                      : "eventButton"
-                  }
-                  onClick={() =>
-                    setActiveEvent(
-                      String(event.id)
-                    )
-                  }
-                >
-                  {event.gender}
-                  {" · "}
-                  {event.name}
-                </button>
-              )
-            )}
-
-          </div>
-
-          <div className="tabs">
-
-            {[
-              [
-                "matches",
-                "🏟️ Matches",
-              ],
-              [
-                "leaderboard",
-                "📈 Leaderboard",
-              ],
-              [
-                "champions",
-                "🏆 Champions",
-              ],
-              [
-                "results",
-                "🥇 Results",
-              ],
-              [
-                "standings",
-                "📊 Overall Points",
-              ],
-            ].map(
-              ([key, label]) => (
-                <button
-                  key={key}
-                  className={
-                    activeTab === key
-                      ? "tab active"
-                      : "tab"
-                  }
-                  onClick={() =>
-                    setActiveTab(key)
-                  }
-                >
-                  {label}
-                </button>
-              )
-            )}
-
-          </div>
-
-          {msg && (
-            <div className="card">
-              {msg}
+          <div className="card">
+            <div className="live">
+              🔴 LIVE
             </div>
-          )}
+
+            <h2>
+              Live Matches
+            </h2>
+
+            {loading ? (
+              <p>Loading...</p>
+            ) : liveMatches.length === 0 ? (
+              <p className="muted">
+                No live matches right now.
+              </p>
+            ) : (
+              liveMatches.map((match) => (
+                <MatchCard
+                  key={match.id}
+                  match={match}
+                />
+              ))
+            )}
+          </div>
+
+          <div className="card">
+            <div className="live">
+              🟡 UPCOMING
+            </div>
+
+            <h2>
+              Upcoming Matches
+            </h2>
+
+            {loading ? (
+              <p>Loading...</p>
+            ) : upcomingMatches.length === 0 ? (
+              <p className="muted">
+                No upcoming matches.
+              </p>
+            ) : (
+              upcomingMatches.map((match) => (
+                <MatchCard
+                  key={match.id}
+                  match={match}
+                />
+              ))
+            )}
+          </div>
+
+        </div>
+
+        {/* ====================================================
+            COMPLETED
+        ==================================================== */}
+
+        <div className="card section">
+          <h2>
+            ✅ Completed Matches
+          </h2>
 
           {loading ? (
-            <div className="empty">
-              <div className="emptyIcon">
-                ⏳
+            <p>Loading...</p>
+          ) : completedMatches.length === 0 ? (
+            <p className="muted">
+              No completed matches yet.
+            </p>
+          ) : (
+            completedMatches.map((match) => (
+              <MatchCard
+                key={match.id}
+                match={match}
+              />
+            ))
+          )}
+        </div>
+
+        {/* ====================================================
+            OVERALL CHAMPIONSHIP
+        ==================================================== */}
+
+        <div className="overallChampionship">
+
+          <h2>
+            🏆 Overall Club Championship
+          </h2>
+
+          <p className="muted">
+            The race for the Euphoria
+            Championship.
+          </p>
+
+          <div style={{ marginTop: "16px" }}>
+            {leaderboard.map((club, index) => (
+              <div
+                className="overallRow"
+                key={club}
+              >
+                <div className="overallPosition">
+                  {getMedal(index)}
+                </div>
+
+                <div className="overallClub">
+                  {club}
+                </div>
+
+                <div className="overallPoints">
+                  {points[club] || 0}
+                </div>
+              </div>
+            ))}
+          </div>
+
+        </div>
+
+        {/* ====================================================
+            TEAM SPORT LEADERBOARD
+        ==================================================== */}
+
+        <div className="section">
+
+          <div className="leaderboardShell">
+
+            <div className="leaderboardGlow" />
+
+            <div className="leaderboardHeading">
+
+              <div>
+                <h2 className="leaderboardTitle">
+                  🏆 Team Sport Standings
+                </h2>
+
+                <p className="leaderboardSubtitle">
+                  Live standings calculated
+                  automatically from completed
+                  matches.
+                </p>
               </div>
 
-              Loading EUPHORIA...
+              {selectedEvent && (
+                <div className="sportBadge">
+                  {selectedEvent.gender}
+                  {" · "}
+                  {selectedEvent.name}
+                </div>
+              )}
+
             </div>
-          ) : (
-            <>
 
-              {/* MATCHES */}
-
-              {activeTab ===
-                "matches" && (
-                <section>
-
-                  <div className="sectionTitle">
-
-                    <h2>
-                      🏟️ Matches
-                    </h2>
-
-                    <span>
-                      {
-                        visibleMatches.length
-                      }{" "}
-                      match
-                      {visibleMatches.length !== 1
-                        ? "es"
-                        : ""}
-                    </span>
-
-                  </div>
-
-                  {visibleMatches.length ===
-                  0 ? (
-                    <div className="empty card">
-                      <div className="emptyIcon">
-                        🏟️
-                      </div>
-
-                      No matches
-                      available yet.
-                    </div>
-                  ) : (
-                    visibleMatches.map(
-                      (match) => {
-                        const scoreA =
-                          getMatchScore(
-                            match,
-                            "a"
-                          );
-
-                        const scoreB =
-                          getMatchScore(
-                            match,
-                            "b"
-                          );
-
-                        const winnerId =
-                          Number(
-                            match.winner_club_id
-                          );
-
-                        const cricket =
-                          isCricketEvent(
-                            match.events
-                          );
-
-                        return (
-                          <div
-                            className="card matchCard"
-                            key={match.id}
-                          >
-
-                            <div className="matchTop">
-
-                              <div className="eventName">
-                                {
-                                  match.events
-                                    ?.gender
-                                }
-                                {" · "}
-                                {
-                                  match.events
-                                    ?.name
-                                }
-                                {" · "}
-                                {
-                                  match.events
-                                    ?.category
-                                }
-                              </div>
-
-                              <div
-                                className={`status status-${normalize(
-                                  match.status
-                                ).replace(
-                                  /\s+/g,
-                                  "-"
-                                )}`}
-                              >
-                                {match.status}
-                              </div>
-
-                            </div>
-
-                            <div className="teams">
-
-                              <div className="team">
-
-                                <div
-                                  className={
-                                    winnerId ===
-                                    Number(
-                                      match.club_a_id
-                                    )
-                                      ? "teamName winner"
-                                      : "teamName"
-                                  }
-                                >
-                                  {
-                                    match.club_a
-                                      ?.name
-                                  }
-                                </div>
-
-                                <div
-                                  className={
-                                    winnerId ===
-                                    Number(
-                                      match.club_a_id
-                                    )
-                                      ? "score winner"
-                                      : "score"
-                                  }
-                                >
-                                  {scoreA}
-                                </div>
-
-                              </div>
-
-                              <div className="vs">
-                                VS
-                              </div>
-
-                              <div className="team right">
-
-                                <div
-                                  className={
-                                    winnerId ===
-                                    Number(
-                                      match.club_b_id
-                                    )
-                                      ? "teamName winner"
-                                      : "teamName"
-                                  }
-                                >
-                                  {
-                                    match.club_b
-                                      ?.name
-                                  }
-                                </div>
-
-                                <div
-                                  className={
-                                    winnerId ===
-                                    Number(
-                                      match.club_b_id
-                                    )
-                                      ? "score winner"
-                                      : "score"
-                                  }
-                                >
-                                  {scoreB}
-                                </div>
-
-                              </div>
-
-                            </div>
-
-                            {match.match_time && (
-                              <div className="matchMeta">
-                                🕒{" "}
-                                {new Date(
-                                  match.match_time
-                                ).toLocaleString()}
-                              </div>
-                            )}
-
-                            {cricket &&
-                              match.allotted_overs && (
-                                <div className="matchMeta">
-                                  🏏{" "}
-                                  {
-                                    match.allotted_overs
-                                  }{" "}
-                                  overs
-                                </div>
-                              )}
-
-                          </div>
-                        );
-                      }
-                    )
-                  )}
-
-                </section>
-              )}
-
-              {/* LEADERBOARD */}
-
-              {activeTab ===
-                "leaderboard" && (
-                <section>
-
-                  <div className="sectionTitle">
-
-                    <h2>
-                      📈 Event Leaderboard
-                    </h2>
-
-                    <span>
-                      Based on completed
-                      matches
-                    </span>
-
-                  </div>
-
-                  {eventLeaderboards.length ===
-                  0 ? (
-                    <div className="empty card">
-                      No events
-                      available.
-                    </div>
-                  ) : (
-                    eventLeaderboards.map(
-                      (group) => (
-                        <div
-                          className="leaderboardCard"
-                          key={
-                            group.event.id
-                          }
-                        >
-
-                          <div className="leaderboardHeader">
-
-                            <div>
-
-                              <div className="leaderboardTitle">
-                                {
-                                  group.event
-                                    .gender
-                                }
-                                {" · "}
-                                {
-                                  group.event
-                                    .name
-                                }
-                              </div>
-
-                              <div className="leaderboardSubtitle">
-                                {
-                                  group.event
-                                    .category
-                                }
-                                {" · "}
-                                {group.cricket
-                                  ? "Cricket points + NRR"
-                                  : group.football
-                                  ? "Football points + Goal Difference"
-                                  : "Match points + Points Difference"}
-                              </div>
-
-                            </div>
-
-                            <div className="matchCount">
-                              {
-                                group.completedMatches
-                              }{" "}
-                              completed
-                            </div>
-
-                          </div>
-
-                          {group.leaderboard.length ===
-                          0 ? (
-                            <div className="empty">
-                              No completed
-                              matches yet.
-                            </div>
-                          ) : (
-                            <div className="leaderboardTable">
-
-                              <table>
-
-                                <thead>
-                                  <tr>
-                                    <th>Rank</th>
-                                    <th>Club</th>
-                                    <th>P</th>
-                                    <th>W</th>
-                                    <th>T</th>
-                                    <th>L</th>
-
-                                    {group.cricket ? (
-                                      <>
-                                        <th>Runs For</th>
-                                        <th>Runs Against</th>
-                                        <th>NRR</th>
-                                      </>
-                                    ) : group.football ? (
-                                      <>
-                                        <th>Goals For</th>
-                                        <th>Goals Against</th>
-                                        <th>GD</th>
-                                      </>
-                                    ) : (
-                                      <>
-                                        <th>PF</th>
-                                        <th>PA</th>
-                                        <th>PD</th>
-                                      </>
-                                    )}
-
-                                    <th>Points</th>
-                                  </tr>
-                                </thead>
-
-                                <tbody>
-
-                                  {group.leaderboard.map(
-                                    (
-                                      club,
-                                      index
-                                    ) => {
-
-                                      const difference =
-                                        group.cricket
-                                          ? club.nrr
-                                          : group.football
-                                          ? club.goalDifference
-                                          : club.pointsDifference;
-
-                                      return (
-                                        <tr
-                                          key={
-                                            club.id
-                                          }
-                                        >
-
-                                          <td
-                                            className={
-                                              index === 0
-                                                ? "leaderRank goldRank"
-                                                : index === 1
-                                                ? "leaderRank silverRank"
-                                                : index === 2
-                                                ? "leaderRank bronzeRank"
-                                                : "leaderRank"
-                                            }
-                                          >
-                                            {index === 0
-                                              ? "🥇"
-                                              : index === 1
-                                              ? "🥈"
-                                              : index === 2
-                                              ? "🥉"
-                                              : index + 1}
-                                          </td>
-
-                                          <td className="leaderClub">
-                                            {club.name}
-                                          </td>
-
-                                          <td>
-                                            {club.played}
-                                          </td>
-
-                                          <td>
-                                            {club.won}
-                                          </td>
-
-                                          <td>
-                                            {club.drawn}
-                                          </td>
-
-                                          <td>
-                                            {club.lost}
-                                          </td>
-
-                                          {group.cricket ? (
-                                            <>
-                                              <td className="metric">
-                                                {club.runsFor}
-                                              </td>
-
-                                              <td className="metric">
-                                                {club.runsAgainst}
-                                              </td>
-
-                                              <td
-                                                className={`metric ${
-                                                  club.nrr > 0
-                                                    ? "positive"
-                                                    : club.nrr < 0
-                                                    ? "negative"
-                                                    : "neutral"
-                                                }`}
-                                              >
-                                                {club.nrr.toFixed(
-                                                  2
-                                                )}
-                                              </td>
-                                            </>
-                                          ) : group.football ? (
-                                            <>
-                                              <td className="metric">
-                                                {club.goalsFor}
-                                              </td>
-
-                                              <td className="metric">
-                                                {club.goalsAgainst}
-                                              </td>
-
-                                              <td
-                                                className={`metric ${
-                                                  difference > 0
-                                                    ? "positive"
-                                                    : difference < 0
-                                                    ? "negative"
-                                                    : "neutral"
-                                                }`}
-                                              >
-                                                {difference > 0
-                                                  ? "+"
-                                                  : ""}
-                                                {difference}
-                                              </td>
-                                            </>
-                                          ) : (
-                                            <>
-                                              <td className="metric">
-                                                {club.pointsFor}
-                                              </td>
-
-                                              <td className="metric">
-                                                {club.pointsAgainst}
-                                              </td>
-
-                                              <td
-                                                className={`metric ${
-                                                  difference > 0
-                                                    ? "positive"
-                                                    : difference < 0
-                                                    ? "negative"
-                                                    : "neutral"
-                                                }`}
-                                              >
-                                                {difference > 0
-                                                  ? "+"
-                                                  : ""}
-                                                {difference}
-                                              </td>
-                                            </>
-                                          )}
-
-                                          <td className="leaderPoints">
-                                            {club.points}
-                                          </td>
-
-                                        </tr>
-                                      );
-                                    }
-                                  )}
-
-                                </tbody>
-
-                              </table>
-
-                            </div>
-                          )}
-
-                        </div>
+            {teamSports.length === 0 ? (
+              <p className="muted">
+                No team sports have been added yet.
+              </p>
+            ) : (
+              <>
+
+                <label>
+                  <b>
+                    Select Sport
+                  </b>
+
+                  <select
+                    className="leaderboardSelect"
+                    value={selectedTeamSport}
+                    onChange={(event) =>
+                      setSelectedTeamSport(
+                        event.target.value
                       )
-                    )
-                  )}
+                    }
+                  >
+                    {teamSports.map((event) => (
+                      <option
+                        key={event.id}
+                        value={event.id}
+                      >
+                        {event.gender} · {event.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
 
-                </section>
-              )}
+                {selectedEvent && (
+                  <>
+                    {sportLeaderboard.completedCount === 0 ? (
+                      <div
+                        style={{
+                          padding: "28px 0",
+                        }}
+                      >
+                        <p className="muted">
+                          No matches played yet.
+                        </p>
 
-              {/* CHAMPIONS */}
-
-              {activeTab ===
-                "champions" && (
-                <section>
-
-                  <div className="sectionTitle">
-
-                    <h2>
-                      🏆 Champions
-                    </h2>
-
-                    <span>
-                      Finalized events only
-                    </span>
-
-                  </div>
-
-                  {champions.length ===
-                  0 ? (
-                    <div className="empty card">
-
-                      <div className="emptyIcon">
-                        🏆
+                        <p>
+                          All clubs currently
+                          have <b>0</b> matches
+                          played.
+                        </p>
                       </div>
+                    ) : (
+                      <>
 
-                      <strong>
-                        No champions
-                        finalized yet.
-                      </strong>
+                        {/* ================================
+                            PODIUM
+                        ================================= */}
 
-                      <p>
-                        The champion will
-                        appear here after
-                        the event result is
-                        officially finalized
-                        by the admin.
-                      </p>
+                        {sportLeaderboard.rows.length >= 3 && (
+                          <div className="podium">
 
-                    </div>
-                  ) : (
-                    <div className="championGrid">
+                            {[1, 0, 2].map(
+                              (position) => {
+                                const row =
+                                  sportLeaderboard.rows[
+                                    position
+                                  ];
 
-                      {champions.map(
-                        (item) => (
-                          <div
-                            className="championCard"
-                            key={
-                              item.event.id
-                            }
-                          >
+                                if (!row) return null;
 
-                            <div className="trophy">
-                              🏆
-                            </div>
-
-                            <div className="championLabel">
-                              EUPHORIA
-                              CHAMPION
-                            </div>
-
-                            <div className="championName">
-                              {
-                                item.club
-                                  ?.name
-                              }
-                            </div>
-
-                            <div className="championEvent">
-                              {
-                                item.event
-                                  .gender
-                              }
-                              {" · "}
-                              {
-                                item.event
-                                  .name
-                              }
-                              {" · "}
-                              {
-                                item.event
-                                  .category
-                              }
-                            </div>
-
-                            <div className="finalizedBadge">
-                              ✓ RESULT
-                              FINALIZED
-                            </div>
-
-                          </div>
-                        )
-                      )}
-
-                    </div>
-                  )}
-
-                </section>
-              )}
-
-              {/* RESULTS */}
-
-              {activeTab ===
-                "results" && (
-                <section>
-
-                  <div className="sectionTitle">
-
-                    <h2>
-                      🥇 Finalized Results
-                    </h2>
-
-                    <span>
-                      Official results only
-                    </span>
-
-                  </div>
-
-                  {groupedResults.length ===
-                  0 ? (
-                    <div className="empty card">
-
-                      <div className="emptyIcon">
-                        📋
-                      </div>
-
-                      No event results
-                      have been finalized
-                      yet.
-
-                    </div>
-                  ) : (
-                    groupedResults.map(
-                      (group) => (
-                        <div
-                          key={
-                            group.event.id
-                          }
-                          style={{
-                            marginBottom:
-                              "30px",
-                          }}
-                        >
-
-                          <div className="sectionTitle">
-
-                            <h2>
-                              {
-                                group.event
-                                  .gender
-                              }
-                              {" · "}
-                              {
-                                group.event
-                                  .name
-                              }
-                            </h2>
-
-                            <span>
-                              ✓ Finalized
-                            </span>
-
-                          </div>
-
-                          <div className="podiumGrid">
-
-                            {[
-                              ...group.results,
-                            ]
-                              .sort(
-                                (a,b) =>
-                                  Number(
-                                    a.position
-                                  ) -
-                                  Number(
-                                    b.position
-                                  )
-                              )
-                              .map(
-                                (
-                                  result
-                                ) => (
+                                return (
                                   <div
-                                    className="podiumCard"
-                                    key={
-                                      result.id
-                                    }
+                                    key={row.id}
+                                    className={`podiumCard ${
+                                      position === 0
+                                        ? "first"
+                                        : ""
+                                    }`}
                                   >
 
-                                    <div className="podiumPosition">
-                                      {Number(
-                                        result.position
-                                      ) === 1
-                                        ? "🥇"
-                                        : Number(
-                                            result.position
-                                          ) === 2
-                                        ? "🥈"
-                                        : "🥉"}
+                                    <div>
+                                      <div className="podiumMedal">
+                                        {getMedal(position)}
+                                      </div>
+
+                                      <div className="podiumPosition">
+                                        {position === 0
+                                          ? "CHAMPIONS"
+                                          : `POSITION ${
+                                              position + 1
+                                            }`}
+                                      </div>
+
+                                      <div className="podiumClub">
+                                        {row.name}
+                                      </div>
                                     </div>
 
-                                    <div className="podiumClub">
-                                      {
-                                        result.clubs
-                                          ?.name
-                                      }
-                                    </div>
+                                    <div>
+                                      <div className="podiumPoints">
+                                        {row.points}
+                                      </div>
 
-                                    <div className="podiumEvent">
-                                      {
-                                        group.event
-                                          .category
-                                      }
-                                    </div>
-
-                                    <div className="podiumPoints">
-                                      +
-                                      {
-                                        result.points
-                                      }{" "}
-                                      points
+                                      <div className="podiumPts">
+                                        POINTS
+                                      </div>
                                     </div>
 
                                   </div>
+                                );
+                              }
+                            )}
+
+                          </div>
+                        )}
+
+                        {/* ================================
+                            DESKTOP TABLE
+                        ================================= */}
+
+                        <div
+                          className="standingsFrame standingsDesktop"
+                          style={{
+                            marginTop: "20px",
+                          }}
+                        >
+
+                          <table className="standingsTable">
+
+                            <thead>
+                              <tr>
+
+                                <th>
+                                  POS
+                                </th>
+
+                                <th
+                                  style={{
+                                    textAlign: "left",
+                                  }}
+                                >
+                                  CLUB
+                                </th>
+
+                                <th>
+                                  P
+                                </th>
+
+                                <th>
+                                  W
+                                </th>
+
+                                {isFootball && (
+                                  <th>
+                                    D
+                                  </th>
+                                )}
+
+                                {!isCricket &&
+                                  !isFootball &&
+                                  !usesPD && (
+                                    <th>
+                                      D
+                                    </th>
+                                  )}
+
+                                <th>
+                                  L
+                                </th>
+
+                                {isCricket && (
+                                  <th>
+                                    NR
+                                  </th>
+                                )}
+
+                                {isCricket && (
+                                  <th>
+                                    NRR
+                                  </th>
+                                )}
+
+                                {isFootball && (
+                                  <th>
+                                    GD
+                                  </th>
+                                )}
+
+                                {usesPD && (
+                                  <>
+                                    <th>
+                                      PF
+                                    </th>
+
+                                    <th>
+                                      PA
+                                    </th>
+
+                                    <th>
+                                      PD
+                                    </th>
+                                  </>
+                                )}
+
+                                <th>
+                                  PTS
+                                </th>
+
+                              </tr>
+                            </thead>
+
+                            <tbody>
+
+                              {sportLeaderboard.rows.map(
+                                (row, index) => (
+                                  <tr
+                                    key={row.id}
+                                    className={
+                                      index === 0
+                                        ? "leaderRow"
+                                        : index === 1
+                                        ? "secondRow"
+                                        : index === 2
+                                        ? "thirdRow"
+                                        : ""
+                                    }
+                                  >
+
+                                    <td className="positionCell">
+                                      {getMedal(index)}
+                                    </td>
+
+                                    <td className="clubCell">
+                                      {row.name}
+                                    </td>
+
+                                    <td>
+                                      {row.played}
+                                    </td>
+
+                                    <td>
+                                      {row.wins}
+                                    </td>
+
+                                    {(isFootball ||
+                                      (!isCricket &&
+                                        !usesPD)) && (
+                                      <td>
+                                        {row.draws}
+                                      </td>
+                                    )}
+
+                                    <td>
+                                      {row.losses}
+                                    </td>
+
+                                    {isCricket && (
+                                      <td>
+                                        {row.noResults}
+                                      </td>
+                                    )}
+
+                                    {isCricket && (
+                                      <td
+                                        style={{
+                                          fontWeight: 850,
+                                        }}
+                                      >
+                                        {formatNRR(row.nrr)}
+                                      </td>
+                                    )}
+
+                                    {isFootball && (
+                                      <td
+                                        style={{
+                                          fontWeight: 850,
+                                        }}
+                                      >
+                                        {row.pd > 0
+                                          ? "+"
+                                          : ""}
+                                        {row.pd}
+                                      </td>
+                                    )}
+
+                                    {usesPD && (
+                                      <>
+                                        <td>
+                                          {formatNumber(
+                                            row.pf
+                                          )}
+                                        </td>
+
+                                        <td>
+                                          {formatNumber(
+                                            row.pa
+                                          )}
+                                        </td>
+
+                                        <td
+                                          style={{
+                                            fontWeight: 850,
+                                          }}
+                                        >
+                                          {row.pd > 0
+                                            ? "+"
+                                            : ""}
+                                          {formatNumber(
+                                            row.pd
+                                          )}
+                                        </td>
+                                      </>
+                                    )}
+
+                                    <td className="pointsCell">
+                                      {row.points}
+                                    </td>
+
+                                  </tr>
                                 )
                               )}
 
-                          </div>
+                            </tbody>
+
+                          </table>
 
                         </div>
-                      )
-                    )
-                  )}
 
-                </section>
-              )}
+                        {/* ================================
+                            MOBILE TABLE
+                        ================================= */}
 
-              {/* ⭐ OVERALL POINTS */}
+                        <div
+                          className="standingsFrame mobileStandings"
+                          style={{
+                            marginTop: "20px",
+                          }}
+                        >
 
-              {activeTab ===
-                "standings" && (
-                <section>
+                          {sportLeaderboard.rows.map(
+                            (row, index) => (
+                              <div
+                                key={row.id}
+                                className={`mobileStandingRow ${
+                                  index === 0
+                                    ? "first"
+                                    : ""
+                                }`}
+                              >
 
-                  <div className="sectionTitle">
+                                <div className="mobileStandingRank">
+                                  {getMedal(index)}
+                                </div>
 
-                    <h2>
-                      📊 Overall Club Points
-                    </h2>
+                                <div className="mobileStandingClub">
 
-                    <span>
-                      Finalized results only
+                                  <div className="mobileStandingClubName">
+                                    {row.name}
+                                  </div>
+
+                                  <div className="mobileStandingStats">
+
+                                    <span>
+                                      P {row.played}
+                                    </span>
+
+                                    <span>
+                                      W {row.wins}
+                                    </span>
+
+                                    {isFootball && (
+                                      <span>
+                                        D {row.draws}
+                                      </span>
+                                    )}
+
+                                    {!isCricket &&
+                                      !isFootball &&
+                                      !usesPD && (
+                                        <span>
+                                          D {row.draws}
+                                        </span>
+                                      )}
+
+                                    <span>
+                                      L {row.losses}
+                                    </span>
+
+                                    {isCricket && (
+                                      <span>
+                                        NR {row.noResults}
+                                      </span>
+                                    )}
+
+                                  </div>
+
+                                  {isCricket && (
+                                    <div className="mobileStandingExtra">
+                                      NRR{" "}
+                                      <b>
+                                        {formatNRR(row.nrr)}
+                                      </b>
+                                    </div>
+                                  )}
+
+                                  {isFootball && (
+                                    <div className="mobileStandingExtra">
+                                      GD{" "}
+                                      <b>
+                                        {row.pd > 0
+                                          ? "+"
+                                          : ""}
+                                        {row.pd}
+                                      </b>
+                                    </div>
+                                  )}
+
+                                  {usesPD && (
+                                    <div className="mobileStandingExtra">
+                                      PF{" "}
+                                      {formatNumber(row.pf)}
+                                      {" · "}
+                                      PA{" "}
+                                      {formatNumber(row.pa)}
+                                      {" · "}
+                                      PD{" "}
+                                      {row.pd > 0
+                                        ? "+"
+                                        : ""}
+                                      {formatNumber(row.pd)}
+                                    </div>
+                                  )}
+
+                                </div>
+
+                                <div className="mobileStandingPoints">
+
+                                  <strong>
+                                    {row.points}
+                                  </strong>
+
+                                  <small>
+                                    PTS
+                                  </small>
+
+                                </div>
+
+                              </div>
+                            )
+                          )}
+
+                        </div>
+
+                        {/* LEGEND */}
+
+                        <div className="tableLegend">
+
+                          <b>P</b> Played ·{" "}
+                          <b>W</b> Won ·{" "}
+
+                          {(isFootball ||
+                            (!isCricket &&
+                              !usesPD)) && (
+                            <>
+                              <b>D</b> Draw ·{" "}
+                            </>
+                          )}
+
+                          <b>L</b> Lost ·{" "}
+
+                          {isCricket && (
+                            <>
+                              <b>NR</b> No Result ·{" "}
+                              <b>NRR</b> Net Run Rate ·{" "}
+                            </>
+                          )}
+
+                          {isFootball && (
+                            <>
+                              <b>GD</b> Goal Difference ·{" "}
+                            </>
+                          )}
+
+                          {usesPD && (
+                            <>
+                              <b>PF</b> Points For ·{" "}
+                              <b>PA</b> Points Against ·{" "}
+                              <b>PD</b> Point Difference ·{" "}
+                            </>
+                          )}
+
+                          <b>PTS</b> Competition Points
+
+                        </div>
+
+                      </>
+                    )}
+                  </>
+                )}
+
+              </>
+            )}
+
+          </div>
+
+        </div>
+
+        {/* ====================================================
+            POINTS SYSTEM
+        ==================================================== */}
+
+        <div className="card section">
+
+          <h2>
+            Points System
+          </h2>
+
+          <div className="rules">
+
+            <div>
+              <b>
+                Team
+              </b>
+
+              <span>
+                🥇 25 · 🥈 15 · 🥉 7
+              </span>
+            </div>
+
+            <div>
+              <b>
+                Doubles / Mixed
+              </b>
+
+              <span>
+                🥇 15 · 🥈 10 · 🥉 7
+              </span>
+            </div>
+
+            <div>
+              <b>
+                Individual
+              </b>
+
+              <span>
+                🥇 10 · 🥈 7 · 🥉 5
+              </span>
+            </div>
+
+          </div>
+
+        </div>
+
+        {/* ====================================================
+            EVENTS
+        ==================================================== */}
+
+        <div className="card section">
+
+          <h2>
+            Events
+          </h2>
+
+          {Object.entries(eventGroups).map(
+            ([group, sports]) => (
+              <div
+                className="eventGroup"
+                key={group}
+              >
+
+                <h3>
+                  {group}
+                </h3>
+
+                <div className="pills">
+
+                  {sports.map((sport) => (
+                    <span key={sport}>
+                      {sport}
                     </span>
+                  ))}
 
-                  </div>
+                </div>
 
-                  <div className="tableWrap">
-
-                    <table>
-
-                      <thead>
-
-                        <tr>
-                          <th>Rank</th>
-                          <th>Club</th>
-                          <th>🥇</th>
-                          <th>🥈</th>
-                          <th>🥉</th>
-                          <th>Points</th>
-                        </tr>
-
-                      </thead>
-
-                      <tbody>
-
-                        {standings.map(
-                          (
-                            club,
-                            index
-                          ) => (
-                            <tr
-                              key={
-                                club.id
-                              }
-                            >
-
-                              <td className="rank">
-                                {index + 1}
-                              </td>
-
-                              <td>
-                                <strong>
-                                  {club.name}
-                                </strong>
-                              </td>
-
-                              <td>
-                                {club.gold}
-                              </td>
-
-                              <td>
-                                {club.silver}
-                              </td>
-
-                              <td>
-                                {club.bronze}
-                              </td>
-
-                              <td className="points">
-                                {club.points}
-                              </td>
-
-                            </tr>
-                          )
-                        )}
-
-                      </tbody>
-
-                    </table>
-
-                  </div>
-
-                  {standings.every(
-                    (club) =>
-                      club.points === 0
-                  ) && (
-                    <div className="empty">
-                      Overall club points
-                      will appear after
-                      event results are
-                      finalized.
-                    </div>
-                  )}
-
-                </section>
-              )}
-
-            </>
+              </div>
+            )
           )}
 
-        </main>
+          {events.length > 0 && (
+            <div
+              className="eventGroup"
+              style={{
+                marginTop: "24px",
+              }}
+            >
 
-        <footer>
+              <h3>
+                Added Events
+              </h3>
 
-          EUPHORIA 2026 ·
-          Sports Fest
+              <div className="pills">
 
-          <br />
+                {events.map((event) => (
+                  <span key={event.id}>
+                    {event.name}
+                    {" · "}
+                    {event.gender}
+                  </span>
+                ))}
 
-          <span>
-            Scores and leaderboards
-            update automatically.
-          </span>
+              </div>
 
-        </footer>
+            </div>
+          )}
 
-      </div>
-    </>
+        </div>
+
+      </section>
+
+    </main>
   );
 }
