@@ -15,136 +15,65 @@ const category = String(event.category || "").trim().toLowerCase();
 const pointsType = String(event.points_type || "").trim().toLowerCase();
 
 return (
-name === "cricket" &&
-(category.includes("team") || pointsType.includes("team"))
+name.includes("cricket") ||
+(category.includes("team") && pointsType.includes("team"))
 );
-}
-
-/*
-Your database stores cricket innings as:
-
-innings1_runs
-innings1_wickets
-innings1_overs
-
-innings2_runs
-innings2_wickets
-innings2_overs
-
-batting_first_club_id tells us which club corresponds
-to innings 1.
-*/
-
-function getInningsForClub(match, clubId) {
-if (!match || !clubId) return null;
-
-const battingFirst = Number(match.batting_first_club_id);
-const requestedClub = Number(clubId);
-
-if (!battingFirst) return null;
-
-if (requestedClub === battingFirst) {
-return {
-runs: match.innings1_runs,
-wickets: match.innings1_wickets,
-overs: match.innings1_overs,
-};
-}
-
-return {
-runs: match.innings2_runs,
-wickets: match.innings2_wickets,
-overs: match.innings2_overs,
-};
 }
 
 function formatScore(match, side) {
-if (!match) return "—";
+let runs;
+let wickets;
+let overs;
 
-const clubId =
-side === "a"
-? match.club_a_id
-: match.club_b_id;
-
-/*
-For cricket, use innings data.
-*/
-if (isCricketEvent(match.events)) {
-const innings = getInningsForClub(
-match,
-clubId
-);
-
-if (innings) {
-  const hasRuns =
-    innings.runs !== null &&
-    innings.runs !== undefined &&
-    innings.runs !== "";
-
-  const hasWickets =
-    innings.wickets !== null &&
-    innings.wickets !== undefined &&
-    innings.wickets !== "";
-
-  const hasOvers =
-    innings.overs !== null &&
-    innings.overs !== undefined &&
-    innings.overs !== "";
-
-  if (hasRuns || hasWickets || hasOvers) {
-    let score = hasRuns
-      ? String(innings.runs)
-      : "0";
-
-    if (hasWickets) {
-      score += `/${innings.wickets}`;
-    }
-
-    if (hasOvers) {
-      score += ` (${innings.overs} ov)`;
-    }
-
-    return score;
-  }
+if (side === "a") {
+runs = match.innings1_runs;
+wickets = match.innings1_wickets;
+overs = match.innings1_overs;
+} else {
+runs = match.innings2_runs;
+wickets = match.innings2_wickets;
+overs = match.innings2_overs;
 }
-
-}
-
-/*
-Non-cricket events use score_a / score_b.
-*/
-const fallback =
-side === "a"
-? match.score_a
-: match.score_b;
 
 if (
-fallback !== null &&
-fallback !== undefined &&
-fallback !== ""
+runs === null ||
+runs === undefined ||
+runs === ""
 ) {
-return String(fallback);
+return match["score_${side}"] || "—";
 }
 
-return "—";
+let score = String(runs);
+
+if (
+wickets !== null &&
+wickets !== undefined &&
+wickets !== ""
+) {
+score += "/${wickets}";
+}
+
+if (
+overs !== null &&
+overs !== undefined &&
+overs !== ""
+) {
+score += " (${overs} ov)";
+}
+
+return score;
 }
 
 function statusClass(status) {
 const value = String(status || "")
-.trim()
-.toLowerCase();
+.toLowerCase()
+.replace(/\s+/g, "-");
 
-if (
-value.includes("live") ||
-value.includes("ongoing")
-) {
-return "live";
-}
-
+if (value.includes("live")) return "live";
 if (
 value.includes("final") ||
-value.includes("completed") ||
-value.includes("finished")
+value.includes("complete") ||
+value.includes("completed")
 ) {
 return "final";
 }
@@ -166,6 +95,9 @@ const [loading, setLoading] = useState(true);
 const [activeEvent, setActiveEvent] = useState("all");
 const [activeTab, setActiveTab] = useState("matches");
 
+const [leaderboardMode, setLeaderboardMode] =
+useState("overall");
+
 const [msg, setMsg] = useState("");
 
 /* =======================================================
@@ -182,34 +114,23 @@ const [
   { data: matchData, error: matchError },
   { data: resultData, error: resultError },
 ] = await Promise.all([
-  /* EVENTS */
   supabase
     .from("events")
     .select("*")
     .order("id"),
 
-  /* CLUBS */
   supabase
     .from("clubs")
     .select("*")
     .order("id"),
 
   /*
-    MATCHES
-
     IMPORTANT:
-    We intentionally DO NOT request:
+    Do NOT request innings_a_wickets /
+    innings_b_wickets because those columns
+    do not exist in the database.
 
-    innings_a_runs
-    innings_a_wickets
-    innings_a_overs
-    innings_b_runs
-    innings_b_wickets
-    innings_b_overs
-
-    because those columns do not exist.
-
-    We use innings1_* and innings2_* instead.
+    Cricket uses innings1_* and innings2_*.
   */
   supabase
     .from("matches")
@@ -261,7 +182,6 @@ const [
     `)
     .order("id", { ascending: false }),
 
-  /* RESULTS */
   supabase
     .from("event_results")
     .select(`
@@ -288,28 +208,24 @@ const [
     .order("position"),
 ]);
 
-/* =====================================================
-   ERROR HANDLING
-===================================================== */
-
 if (eventError) {
   console.error("Events error:", eventError);
-  setMsg(`Events: ${eventError.message}`);
+  setMsg(eventError.message);
 }
 
 if (clubError) {
   console.error("Clubs error:", clubError);
-  setMsg(`Clubs: ${clubError.message}`);
+  setMsg(clubError.message);
 }
 
 if (matchError) {
   console.error("Matches error:", matchError);
-  setMsg(`Matches: ${matchError.message}`);
+  setMsg(matchError.message);
 }
 
 if (resultError) {
   console.error("Results error:", resultError);
-  setMsg(`Results: ${resultError.message}`);
+  setMsg(resultError.message);
 }
 
 setEvents(eventData || []);
@@ -317,23 +233,19 @@ setClubs(clubData || []);
 setMatches(matchData || []);
 
 /*
-  ONLY finalized event results are public.
+  Only finalized event results are public.
 */
-const finalizedResults =
-  (resultData || []).filter(
-    (result) =>
-      result.events?.result_finalized === true
-  );
+
+const finalizedResults = (resultData || []).filter(
+  (result) =>
+    result.events?.result_finalized === true
+);
 
 setResults(finalizedResults);
 
 setLoading(false);
 
 }
-
-/* =======================================================
-INITIAL LOAD + AUTO REFRESH
-======================================================= */
 
 useEffect(() => {
 loadData();
@@ -364,7 +276,7 @@ return matches.filter(
 }, [matches, activeEvent]);
 
 /* =======================================================
-FINALIZED RESULTS
+FILTERED RESULTS
 ======================================================= */
 
 const visibleResults = useMemo(() => {
@@ -394,8 +306,7 @@ for (const event of events) {
 
   const result = results.find(
     (r) =>
-      Number(r.event_id) ===
-        Number(event.id) &&
+      Number(r.event_id) === Number(event.id) &&
       Number(r.position) === 1
   );
 
@@ -423,10 +334,10 @@ return list;
 }, [events, results, activeEvent]);
 
 /* =======================================================
-POINT TABLE
+OVERALL LEADERBOARD
 ======================================================= */
 
-const standings = useMemo(() => {
+const overallStandings = useMemo(() => {
 const table = {};
 
 clubs.forEach((club) => {
@@ -440,11 +351,6 @@ clubs.forEach((club) => {
   };
 });
 
-/*
-  IMPORTANT:
-
-  Points come ONLY from finalized results.
-*/
 results.forEach((result) => {
   if (!result.events?.result_finalized) {
     return;
@@ -500,7 +406,135 @@ return Object.values(table).sort(
 }, [clubs, results]);
 
 /* =======================================================
-GROUP RESULTS BY EVENT
+INDIVIDUAL EVENT / SPORT LEADERBOARD
+
+ This is the important new section.
+
+ When an event is selected:
+   Cricket -> Cricket leaderboard
+   Football -> Football leaderboard
+   etc.
+
+ If "All Events" is selected, the user can still
+ choose an individual event from the leaderboard
+ selector.
+
+======================================================= */
+
+const eventStandings = useMemo(() => {
+let eventId = activeEvent;
+
+/*
+  If All Events is selected, use the first event
+  that has finalized results.
+*/
+if (eventId === "all") {
+  const firstResult = results[0];
+
+  if (!firstResult) {
+    return [];
+  }
+
+  eventId = firstResult.event_id;
+}
+
+const eventResults = results.filter(
+  (result) =>
+    String(result.event_id) ===
+      String(eventId) &&
+    result.events?.result_finalized === true
+);
+
+const table = {};
+
+/*
+  Start every club at zero so even clubs without
+  a medal/result remain visible.
+*/
+clubs.forEach((club) => {
+  table[club.id] = {
+    id: club.id,
+    name: club.name,
+    points: 0,
+    gold: 0,
+    silver: 0,
+    bronze: 0,
+  };
+});
+
+eventResults.forEach((result) => {
+  if (!table[result.club_id]) {
+    table[result.club_id] = {
+      id: result.club_id,
+      name:
+        result.clubs?.name ||
+        "Unknown Club",
+      points: 0,
+      gold: 0,
+      silver: 0,
+      bronze: 0,
+    };
+  }
+
+  table[result.club_id].points +=
+    Number(result.points || 0);
+
+  if (Number(result.position) === 1) {
+    table[result.club_id].gold += 1;
+  }
+
+  if (Number(result.position) === 2) {
+    table[result.club_id].silver += 1;
+  }
+
+  if (Number(result.position) === 3) {
+    table[result.club_id].bronze += 1;
+  }
+});
+
+return Object.values(table).sort(
+  (a, b) => {
+    if (b.points !== a.points) {
+      return b.points - a.points;
+    }
+
+    if (b.gold !== a.gold) {
+      return b.gold - a.gold;
+    }
+
+    if (b.silver !== a.silver) {
+      return b.silver - a.silver;
+    }
+
+    return b.bronze - a.bronze;
+  }
+);
+
+}, [clubs, results, activeEvent]);
+
+/* =======================================================
+EVENT USED FOR INDIVIDUAL LEADERBOARD
+======================================================= */
+
+const leaderboardEvent = useMemo(() => {
+if (activeEvent !== "all") {
+return events.find(
+(event) =>
+String(event.id) ===
+String(activeEvent)
+);
+}
+
+if (results.length > 0) {
+  return results[0].events;
+}
+
+return null;
+
+}, [events, results, activeEvent]);
+
+/* =======================================================
+GROUPED RESULTS
 ======================================================= */
 
 const groupedResults = useMemo(() => {
@@ -597,7 +631,8 @@ box-sizing: border-box;
       backdrop-filter: blur(18px);
 
       border-bottom:
-        1px solid rgba(255, 255, 255, 0.09);
+        1px solid
+        rgba(255, 255, 255, 0.09);
     }
 
     .logo {
@@ -612,10 +647,12 @@ box-sizing: border-box;
 
     .adminLink {
       padding: 10px 16px;
+
       border-radius: 999px;
 
       border:
-        1px solid rgba(255, 255, 255, 0.15);
+        1px solid
+        rgba(255, 255, 255, 0.15);
 
       color: #ddd;
 
@@ -682,6 +719,7 @@ box-sizing: border-box;
         );
 
       -webkit-background-clip: text;
+
       color: transparent;
     }
 
@@ -693,6 +731,7 @@ box-sizing: border-box;
       color: #aaa2b6;
 
       font-size: 17px;
+
       line-height: 1.7;
     }
 
@@ -700,7 +739,9 @@ box-sizing: border-box;
 
     .container {
       width: min(1200px, 92%);
+
       margin: 0 auto;
+
       padding-bottom: 80px;
     }
 
@@ -708,6 +749,7 @@ box-sizing: border-box;
 
     .eventBar {
       display: flex;
+
       gap: 10px;
 
       overflow-x: auto;
@@ -742,6 +784,7 @@ box-sizing: border-box;
       cursor: pointer;
 
       font-size: 13px;
+
       font-weight: 800;
     }
 
@@ -803,6 +846,7 @@ box-sizing: border-box;
       cursor: pointer;
 
       font-weight: 800;
+
       font-size: 13px;
     }
 
@@ -817,7 +861,9 @@ box-sizing: border-box;
 
     .sectionTitle {
       display: flex;
+
       align-items: center;
+
       justify-content: space-between;
 
       gap: 15px;
@@ -829,11 +875,13 @@ box-sizing: border-box;
 
     .sectionTitle h2 {
       margin: 0;
+
       font-size: 24px;
     }
 
     .sectionTitle span {
       color: #777;
+
       font-size: 13px;
     }
 
@@ -841,6 +889,7 @@ box-sizing: border-box;
 
     .card {
       padding: 22px;
+
       margin-bottom: 15px;
 
       border-radius: 18px;
@@ -869,7 +918,9 @@ box-sizing: border-box;
 
     .matchTop {
       display: flex;
+
       align-items: center;
+
       justify-content: space-between;
 
       gap: 12px;
@@ -879,7 +930,9 @@ box-sizing: border-box;
 
     .eventName {
       color: #aaa;
+
       font-size: 12px;
+
       font-weight: 700;
     }
 
@@ -889,6 +942,7 @@ box-sizing: border-box;
       border-radius: 999px;
 
       font-size: 10px;
+
       font-weight: 900;
 
       letter-spacing: 0.7px;
@@ -941,17 +995,21 @@ box-sizing: border-box;
 
     .team {
       display: flex;
+
       flex-direction: column;
+
       gap: 7px;
     }
 
     .team.right {
       text-align: right;
+
       align-items: flex-end;
     }
 
     .teamName {
       font-size: 17px;
+
       font-weight: 850;
     }
 
@@ -959,6 +1017,7 @@ box-sizing: border-box;
       color: #d5b5ff;
 
       font-size: 22px;
+
       font-weight: 900;
     }
 
@@ -970,6 +1029,7 @@ box-sizing: border-box;
       color: #5f5867;
 
       font-size: 12px;
+
       font-weight: 900;
     }
 
@@ -985,10 +1045,11 @@ box-sizing: border-box;
       color: #777;
 
       font-size: 11px;
+
       text-align: center;
     }
 
-    /* ================= CHAMPIONS ================= */
+    /* ================= CHAMPION ================= */
 
     .championGrid {
       display: grid;
@@ -1004,6 +1065,7 @@ box-sizing: border-box;
 
     .championCard {
       position: relative;
+
       overflow: hidden;
 
       padding: 28px;
@@ -1037,6 +1099,7 @@ box-sizing: border-box;
       color: #d2a5ff;
 
       font-size: 11px;
+
       font-weight: 900;
 
       letter-spacing: 2px;
@@ -1048,6 +1111,7 @@ box-sizing: border-box;
       margin-top: 8px;
 
       font-size: 26px;
+
       font-weight: 950;
     }
 
@@ -1074,6 +1138,7 @@ box-sizing: border-box;
       color: #77e69a;
 
       font-size: 10px;
+
       font-weight: 900;
     }
 
@@ -1112,6 +1177,7 @@ box-sizing: border-box;
       margin-top: 10px;
 
       font-size: 19px;
+
       font-weight: 850;
     }
 
@@ -1129,7 +1195,208 @@ box-sizing: border-box;
       color: #d2a5ff;
 
       font-size: 13px;
+
       font-weight: 850;
+    }
+
+    /* ================= LEADERBOARD ================= */
+
+    .leaderboardHeader {
+      display: flex;
+
+      align-items: center;
+
+      justify-content: space-between;
+
+      gap: 15px;
+
+      margin-bottom: 15px;
+    }
+
+    .leaderboardSelector {
+      display: flex;
+
+      gap: 8px;
+
+      flex-wrap: wrap;
+    }
+
+    .leaderboardMode {
+      border: 1px solid
+        rgba(255, 255, 255, 0.1);
+
+      background:
+        rgba(255, 255, 255, 0.04);
+
+      color: #aaa;
+
+      padding: 9px 13px;
+
+      border-radius: 999px;
+
+      cursor: pointer;
+
+      font-size: 11px;
+
+      font-weight: 800;
+    }
+
+    .leaderboardMode.active {
+      background:
+        linear-gradient(
+          135deg,
+          #a84dff,
+          #6d27d9
+        );
+
+      color: white;
+
+      border-color:
+        rgba(255, 255, 255, 0.2);
+    }
+
+    .leaderboardBanner {
+      padding: 20px;
+
+      margin-bottom: 15px;
+
+      border-radius: 18px;
+
+      background:
+        radial-gradient(
+          circle at top right,
+          rgba(168, 77, 255, 0.18),
+          transparent 55%
+        ),
+        rgba(255, 255, 255, 0.035);
+
+      border:
+        1px solid
+        rgba(255, 255, 255, 0.08);
+    }
+
+    .leaderboardBannerSmall {
+      color: #a69baa;
+
+      font-size: 11px;
+
+      text-transform: uppercase;
+
+      letter-spacing: 1.5px;
+
+      font-weight: 800;
+    }
+
+    .leaderboardBannerTitle {
+      margin-top: 7px;
+
+      font-size: 23px;
+
+      font-weight: 900;
+    }
+
+    .leaderboardBannerSub {
+      margin-top: 5px;
+
+      color: #777;
+
+      font-size: 12px;
+    }
+
+    .leaderboardRows {
+      display: flex;
+
+      flex-direction: column;
+
+      gap: 10px;
+    }
+
+    .leaderboardRow {
+      display: grid;
+
+      grid-template-columns:
+        50px
+        1fr
+        repeat(3, 55px)
+        90px;
+
+      align-items: center;
+
+      gap: 10px;
+
+      padding: 17px;
+
+      border-radius: 16px;
+
+      background:
+        rgba(255, 255, 255, 0.035);
+
+      border:
+        1px solid
+        rgba(255, 255, 255, 0.065);
+    }
+
+    .leaderboardRow.top {
+      background:
+        linear-gradient(
+          110deg,
+          rgba(255, 205, 80, 0.09),
+          rgba(255, 255, 255, 0.035)
+        );
+
+      border-color:
+        rgba(255, 210, 100, 0.16);
+    }
+
+    .leaderboardRank {
+      font-size: 20px;
+
+      font-weight: 950;
+
+      color: #777;
+    }
+
+    .leaderboardRow.top
+      .leaderboardRank {
+      color: #ffd66b;
+    }
+
+    .leaderboardClub {
+      font-size: 15px;
+
+      font-weight: 850;
+    }
+
+    .medalCount {
+      text-align: center;
+
+      color: #aaa;
+
+      font-size: 13px;
+
+      font-weight: 800;
+    }
+
+    .leaderboardPoints {
+      text-align: right;
+
+      color: #d3a7ff;
+
+      font-size: 18px;
+
+      font-weight: 950;
+    }
+
+    .leaderboardLabel {
+      display: block;
+
+      margin-top: 3px;
+
+      color: #666;
+
+      font-size: 9px;
+
+      font-weight: 700;
     }
 
     /* ================= TABLE ================= */
@@ -1146,7 +1413,9 @@ box-sizing: border-box;
 
     table {
       width: 100%;
+
       border-collapse: collapse;
+
       min-width: 620px;
     }
 
@@ -1179,11 +1448,13 @@ box-sizing: border-box;
 
     .rank {
       color: #777;
+
       font-weight: 900;
     }
 
     .points {
       color: #d3a7ff;
+
       font-weight: 950;
     }
 
@@ -1191,12 +1462,15 @@ box-sizing: border-box;
 
     .empty {
       padding: 55px 20px;
+
       text-align: center;
+
       color: #777;
     }
 
     .emptyIcon {
       font-size: 38px;
+
       margin-bottom: 10px;
     }
 
@@ -1226,11 +1500,13 @@ box-sizing: border-box;
 
       .logo {
         font-size: 19px;
+
         letter-spacing: 2px;
       }
 
       .adminLink {
         padding: 8px 12px;
+
         font-size: 10px;
       }
 
@@ -1273,13 +1549,35 @@ box-sizing: border-box;
         padding: 17px;
       }
 
-      .matchTop {
-        align-items: flex-start;
-        flex-direction: column;
+      .leaderboardRow {
+        grid-template-columns:
+          35px
+          1fr
+          35px
+          35px
+          35px
+          65px;
+
+        padding: 13px 10px;
+
+        gap: 5px;
       }
 
-      .sectionTitle {
+      .leaderboardClub {
+        font-size: 13px;
+      }
+
+      .leaderboardPoints {
+        font-size: 15px;
+      }
+
+      .medalCount {
+        font-size: 11px;
+      }
+
+      .leaderboardHeader {
         align-items: flex-start;
+
         flex-direction: column;
       }
     }
@@ -1342,9 +1640,9 @@ box-sizing: border-box;
               ? "eventButton active"
               : "eventButton"
           }
-          onClick={() =>
-            setActiveEvent("all")
-          }
+          onClick={() => {
+            setActiveEvent("all");
+          }}
         >
           All Events
         </button>
@@ -1358,15 +1656,13 @@ box-sizing: border-box;
                 ? "eventButton active"
                 : "eventButton"
             }
-            onClick={() =>
+            onClick={() => {
               setActiveEvent(
                 String(event.id)
-              )
-            }
+              );
+            }}
           >
-            {event.gender
-              ? `${event.gender} · `
-              : ""}
+            {event.gender} ·{" "}
             {event.name}
           </button>
         ))}
@@ -1434,12 +1730,12 @@ box-sizing: border-box;
       </div>
 
       {/* =================================================
-          ERROR MESSAGE
+          MESSAGE
       ================================================= */}
 
       {msg && (
         <div className="card">
-          ⚠️ {msg}
+          {msg}
         </div>
       )}
 
@@ -1466,6 +1762,7 @@ box-sizing: border-box;
             <section>
 
               <div className="sectionTitle">
+
                 <h2>
                   🏟️ Matches
                 </h2>
@@ -1473,23 +1770,21 @@ box-sizing: border-box;
                 <span>
                   {visibleMatches.length}{" "}
                   match
-                  {visibleMatches.length !==
-                  1
+                  {visibleMatches.length !== 1
                     ? "es"
                     : ""}
                 </span>
+
               </div>
 
-              {visibleMatches.length ===
-              0 ? (
+              {visibleMatches.length === 0 ? (
                 <div className="empty card">
 
                   <div className="emptyIcon">
                     🏟️
                   </div>
 
-                  No matches available
-                  yet.
+                  No matches available yet.
 
                 </div>
               ) : (
@@ -1502,16 +1797,22 @@ box-sizing: border-box;
                       );
 
                     const scoreA =
-                      formatScore(
-                        match,
-                        "a"
-                      );
+                      cricket
+                        ? formatScore(
+                            match,
+                            "a"
+                          )
+                        : match.score_a ||
+                          "—";
 
                     const scoreB =
-                      formatScore(
-                        match,
-                        "b"
-                      );
+                      cricket
+                        ? formatScore(
+                            match,
+                            "b"
+                          )
+                        : match.score_b ||
+                          "—";
 
                     const winnerId =
                       Number(
@@ -1527,14 +1828,11 @@ box-sizing: border-box;
                         <div className="matchTop">
 
                           <div className="eventName">
-                            {match.events?.gender
-                              ? `${match.events.gender} · `
-                              : ""}
-                            {match.events?.name ||
-                              "Event"}
-                            {match.events?.category
-                              ? ` · ${match.events.category}`
-                              : ""}
+                            {match.events?.gender}
+                            {" · "}
+                            {match.events?.name}
+                            {" · "}
+                            {match.events?.category}
                           </div>
 
                           <div
@@ -1550,8 +1848,6 @@ box-sizing: border-box;
 
                         <div className="teams">
 
-                          {/* CLUB A */}
-
                           <div className="team">
 
                             <div
@@ -1564,8 +1860,7 @@ box-sizing: border-box;
                                   : "teamName"
                               }
                             >
-                              {match.club_a
-                                ?.name ||
+                              {match.club_a?.name ||
                                 "TBD"}
                             </div>
 
@@ -1588,8 +1883,6 @@ box-sizing: border-box;
                             VS
                           </div>
 
-                          {/* CLUB B */}
-
                           <div className="team right">
 
                             <div
@@ -1602,8 +1895,7 @@ box-sizing: border-box;
                                   : "teamName"
                               }
                             >
-                              {match.club_b
-                                ?.name ||
+                              {match.club_b?.name ||
                                 "TBD"}
                             </div>
 
@@ -1624,8 +1916,6 @@ box-sizing: border-box;
 
                         </div>
 
-                        {/* MATCH TIME */}
-
                         {match.match_time && (
                           <div className="matchMeta">
                             🕒{" "}
@@ -1635,15 +1925,8 @@ box-sizing: border-box;
                           </div>
                         )}
 
-                        {/* CRICKET OVERS */}
-
                         {cricket &&
-                          match.allotted_overs !==
-                            null &&
-                          match.allotted_overs !==
-                            undefined &&
-                          match.allotted_overs !==
-                            "" && (
+                          match.allotted_overs && (
                             <div className="matchMeta">
                               🏏{" "}
                               {match.allotted_overs}{" "}
@@ -1679,8 +1962,7 @@ box-sizing: border-box;
 
               </div>
 
-              {champions.length ===
-              0 ? (
+              {champions.length === 0 ? (
                 <div className="empty card">
 
                   <div className="emptyIcon">
@@ -1688,15 +1970,13 @@ box-sizing: border-box;
                   </div>
 
                   <strong>
-                    No champions
-                    finalized yet.
+                    No champions finalized yet.
                   </strong>
 
                   <p>
-                    The champion will
-                    appear here only after
-                    the event result is
-                    officially finalized
+                    The champion will appear
+                    here only after the event
+                    result is officially finalized
                     by the admin.
                   </p>
 
@@ -1727,17 +2007,11 @@ box-sizing: border-box;
                         </div>
 
                         <div className="championEvent">
-
-                          {item.event.gender
-                            ? `${item.event.gender} · `
-                            : ""}
-
+                          {item.event.gender}
+                          {" · "}
                           {item.event.name}
-
-                          {item.event.category
-                            ? ` · ${item.event.category}`
-                            : ""}
-
+                          {" · "}
+                          {item.event.category}
                         </div>
 
                         <div className="finalizedBadge">
@@ -1773,8 +2047,7 @@ box-sizing: border-box;
 
               </div>
 
-              {groupedResults.length ===
-              0 ? (
+              {groupedResults.length === 0 ? (
                 <div className="empty card">
 
                   <div className="emptyIcon">
@@ -1787,53 +2060,47 @@ box-sizing: border-box;
                 </div>
               ) : (
                 groupedResults.map(
-                  (group) => {
+                  (group) => (
+                    <div
+                      key={
+                        group.event.id
+                      }
+                      style={{
+                        marginBottom:
+                          "30px",
+                      }}
+                    >
 
-                    const sortedResults =
-                      [...group.results].sort(
-                        (a, b) =>
-                          Number(
-                            a.position
-                          ) -
-                          Number(
-                            b.position
-                          )
-                      );
-
-                    return (
                       <div
-                        key={
-                          group.event.id
-                        }
-                        style={{
-                          marginBottom:
-                            "30px",
-                        }}
+                        className="sectionTitle"
                       >
 
-                        <div
-                          className="sectionTitle"
-                        >
+                        <h2>
+                          {group.event.gender}
+                          {" · "}
+                          {group.event.name}
+                        </h2>
 
-                          <h2>
-                            {group.event
-                              .gender
-                              ? `${group.event.gender} · `
-                              : ""}
-                            {group.event.name}
-                          </h2>
+                        <span>
+                          ✓ Finalized
+                        </span>
 
-                          <span>
-                            ✓ Finalized
-                          </span>
+                      </div>
 
-                        </div>
+                      <div className="podiumGrid">
 
-                        <div className="podiumGrid">
-
-                          {sortedResults.map(
+                        {[...group.results]
+                          .sort(
+                            (a, b) =>
+                              Number(
+                                a.position
+                              ) -
+                              Number(
+                                b.position
+                              )
+                          )
+                          .map(
                             (result) => (
-
                               <div
                                 className="podiumCard"
                                 key={
@@ -1842,7 +2109,6 @@ box-sizing: border-box;
                               >
 
                                 <div className="podiumPosition">
-
                                   {Number(
                                     result.position
                                   ) === 1
@@ -1852,7 +2118,6 @@ box-sizing: border-box;
                                       ) === 2
                                     ? "🥈"
                                     : "🥉"}
-
                                 </div>
 
                                 <div className="podiumClub">
@@ -1864,35 +2129,29 @@ box-sizing: border-box;
                                 </div>
 
                                 <div className="podiumEvent">
-
                                   {
                                     group
                                       .event
                                       .category
                                   }
-
                                 </div>
 
                                 <div className="podiumPoints">
-
                                   +
                                   {
                                     result.points
                                   }{" "}
                                   points
-
                                 </div>
 
                               </div>
-
                             )
                           )}
 
-                        </div>
-
                       </div>
-                    );
-                  }
+
+                    </div>
+                  )
                 )
               )}
 
@@ -1900,7 +2159,7 @@ box-sizing: border-box;
           )}
 
           {/* =============================================
-              POINT TABLE
+              POINTS / LEADERBOARD
           ============================================= */}
 
           {activeTab === "standings" && (
@@ -1909,7 +2168,7 @@ box-sizing: border-box;
               <div className="sectionTitle">
 
                 <h2>
-                  📊 Overall Points
+                  📊 Points & Leaderboards
                 </h2>
 
                 <span>
@@ -1918,109 +2177,294 @@ box-sizing: border-box;
 
               </div>
 
-              <div className="tableWrap">
+              {/* LEADERBOARD TYPE */}
 
-                <table>
+              <div className="leaderboardHeader">
 
-                  <thead>
+                <div className="leaderboardSelector">
 
-                    <tr>
-
-                      <th>
-                        Rank
-                      </th>
-
-                      <th>
-                        Club
-                      </th>
-
-                      <th>
-                        🥇
-                      </th>
-
-                      <th>
-                        🥈
-                      </th>
-
-                      <th>
-                        🥉
-                      </th>
-
-                      <th>
-                        Points
-                      </th>
-
-                    </tr>
-
-                  </thead>
-
-                  <tbody>
-
-                    {standings.map(
-                      (club, index) => (
-
-                        <tr
-                          key={
-                            club.id
-                          }
-                        >
-
-                          <td className="rank">
-                            {index + 1}
-                          </td>
-
-                          <td>
-                            <strong>
-                              {
-                                club.name
-                              }
-                            </strong>
-                          </td>
-
-                          <td>
-                            {
-                              club.gold
-                            }
-                          </td>
-
-                          <td>
-                            {
-                              club.silver
-                            }
-                          </td>
-
-                          <td>
-                            {
-                              club.bronze
-                            }
-                          </td>
-
-                          <td className="points">
-                            {
-                              club.points
-                            }
-                          </td>
-
-                        </tr>
-
+                  <button
+                    className={
+                      leaderboardMode ===
+                      "overall"
+                        ? "leaderboardMode active"
+                        : "leaderboardMode"
+                    }
+                    onClick={() =>
+                      setLeaderboardMode(
+                        "overall"
                       )
-                    )}
+                    }
+                  >
+                    🌐 Overall
+                  </button>
 
-                  </tbody>
+                  <button
+                    className={
+                      leaderboardMode ===
+                      "event"
+                        ? "leaderboardMode active"
+                        : "leaderboardMode"
+                    }
+                    onClick={() =>
+                      setLeaderboardMode(
+                        "event"
+                      )
+                    }
+                  >
+                    🏅 This Sport
+                  </button>
 
-                </table>
+                </div>
 
               </div>
 
-              {standings.every(
-                (club) =>
-                  club.points === 0
-              ) && (
-                <div className="empty">
-                  Points will appear
-                  after event results
-                  are finalized.
-                </div>
+              {/* =========================================
+                  OVERALL LEADERBOARD
+              ========================================= */}
+
+              {leaderboardMode === "overall" && (
+                <>
+
+                  <div className="leaderboardBanner">
+
+                    <div className="leaderboardBannerSmall">
+                      EUPHORIA 2026
+                    </div>
+
+                    <div className="leaderboardBannerTitle">
+                      Overall Club Leaderboard
+                    </div>
+
+                    <div className="leaderboardBannerSub">
+                      Points accumulated from
+                      all finalized events.
+                    </div>
+
+                  </div>
+
+                  <div className="leaderboardRows">
+
+                    {overallStandings.map(
+                      (club, index) => (
+                        <div
+                          key={club.id}
+                          className={
+                            index < 3
+                              ? "leaderboardRow top"
+                              : "leaderboardRow"
+                          }
+                        >
+
+                          <div className="leaderboardRank">
+                            {index === 0
+                              ? "🥇"
+                              : index === 1
+                              ? "🥈"
+                              : index === 2
+                              ? "🥉"
+                              : index + 1}
+                          </div>
+
+                          <div className="leaderboardClub">
+                            {club.name}
+                          </div>
+
+                          <div className="medalCount">
+                            {club.gold}
+                            <span className="leaderboardLabel">
+                              GOLD
+                            </span>
+                          </div>
+
+                          <div className="medalCount">
+                            {club.silver}
+                            <span className="leaderboardLabel">
+                              SILVER
+                            </span>
+                          </div>
+
+                          <div className="medalCount">
+                            {club.bronze}
+                            <span className="leaderboardLabel">
+                              BRONZE
+                            </span>
+                          </div>
+
+                          <div className="leaderboardPoints">
+                            {club.points}
+                            <span className="leaderboardLabel">
+                              POINTS
+                            </span>
+                          </div>
+
+                        </div>
+                      )
+                    )}
+
+                  </div>
+
+                  {overallStandings.every(
+                    (club) =>
+                      club.points === 0
+                  ) && (
+                    <div className="empty">
+                      Points will appear after
+                      event results are finalized.
+                    </div>
+                  )}
+
+                </>
+              )}
+
+              {/* =========================================
+                  INDIVIDUAL SPORT LEADERBOARD
+              ========================================= */}
+
+              {leaderboardMode === "event" && (
+                <>
+
+                  <div className="leaderboardBanner">
+
+                    <div className="leaderboardBannerSmall">
+                      INDIVIDUAL SPORT LEADERBOARD
+                    </div>
+
+                    <div className="leaderboardBannerTitle">
+                      {leaderboardEvent
+                        ? `${leaderboardEvent.gender || ""} · ${
+                            leaderboardEvent.name || ""
+                          }`
+                        : "Select a sport"}
+                    </div>
+
+                    <div className="leaderboardBannerSub">
+                      Rankings for this sport
+                      only. Only finalized results
+                      contribute points.
+                    </div>
+
+                  </div>
+
+                  {/* SPORT SELECTOR */}
+
+                  <div
+                    className="eventBar"
+                    style={{
+                      marginBottom:
+                        "20px",
+                    }}
+                  >
+
+                    {events.map((event) => (
+                      <button
+                        key={event.id}
+                        className={
+                          String(
+                            activeEvent
+                          ) ===
+                          String(event.id)
+                            ? "eventButton active"
+                            : "eventButton"
+                        }
+                        onClick={() => {
+                          setActiveEvent(
+                            String(event.id)
+                          );
+                        }}
+                      >
+                        {event.gender} ·{" "}
+                        {event.name}
+                      </button>
+                    ))}
+
+                  </div>
+
+                  {eventStandings.length ===
+                  0 ? (
+                    <div className="empty card">
+
+                      <div className="emptyIcon">
+                        📊
+                      </div>
+
+                      <strong>
+                        No finalized results
+                        for this sport yet.
+                      </strong>
+
+                      <p>
+                        Once the admin finalizes
+                        the event results, the
+                        sport leaderboard will
+                        appear here.
+                      </p>
+
+                    </div>
+                  ) : (
+                    <div className="leaderboardRows">
+
+                      {eventStandings.map(
+                        (club, index) => (
+                          <div
+                            key={club.id}
+                            className={
+                              index < 3
+                                ? "leaderboardRow top"
+                                : "leaderboardRow"
+                            }
+                          >
+
+                            <div className="leaderboardRank">
+                              {index === 0
+                                ? "🥇"
+                                : index === 1
+                                ? "🥈"
+                                : index === 2
+                                ? "🥉"
+                                : index + 1}
+                            </div>
+
+                            <div className="leaderboardClub">
+                              {club.name}
+                            </div>
+
+                            <div className="medalCount">
+                              {club.gold}
+                              <span className="leaderboardLabel">
+                                GOLD
+                              </span>
+                            </div>
+
+                            <div className="medalCount">
+                              {club.silver}
+                              <span className="leaderboardLabel">
+                                SILVER
+                              </span>
+                            </div>
+
+                            <div className="medalCount">
+                              {club.bronze}
+                              <span className="leaderboardLabel">
+                                BRONZE
+                              </span>
+                            </div>
+
+                            <div className="leaderboardPoints">
+                              {club.points}
+                              <span className="leaderboardLabel">
+                                POINTS
+                              </span>
+                            </div>
+
+                          </div>
+                        )
+                      )}
+
+                    </div>
+                  )}
+
+                </>
               )}
 
             </section>
@@ -2036,15 +2480,11 @@ box-sizing: border-box;
     ================================================= */}
 
     <footer>
-
       EUPHORIA 2026 · Sports Fest
-
       <br />
-
       <span>
         Scores update automatically.
       </span>
-
     </footer>
 
   </div>
