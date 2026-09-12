@@ -3039,7 +3039,7 @@ export default function Home() {
 
             <div>
               <b>Team</b>
-              <span>🥇 25 · 🥈 15 · </span>
+              <span>🥇 25 · 🥈 15 </span>
             </div>
 
             <div>
