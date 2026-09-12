@@ -2737,53 +2737,330 @@ export default function Home() {
             rgba(255,255,255,.38);
 
           text-align: center;
+championship {
+position: relative;
 
-          font-size: 10px;
+overflow: hidden;  
 
-          font-weight: 900;
-        }
+      padding: 25px;  
 
-        .clubLogoMini {
-  width: 28px;
-  height: 28px;
-  display: grid;
-  place-items: center;
-  flex-shrink: 0;
+      border-radius: 24px;  
+
+      background:  
+        radial-gradient(  
+          circle at 100% 0%,  
+          rgba(118,67,255,.18),  
+          transparent 36%  
+        ),  
+        radial-gradient(  
+          circle at 0% 100%,  
+          rgba(30,120,255,.08),  
+          transparent 35%  
+        ),  
+        rgba(15,16,26,.86);  
+
+      border:  
+        1px solid  
+        rgba(255,255,255,.09);  
+
+      box-shadow:  
+        0 25px 70px  
+        rgba(0,0,0,.2);  
+    }  
+
+    .championshipHeader {  
+      display: flex;  
+
+      align-items: flex-start;  
+
+      justify-content: space-between;  
+
+      gap: 15px;  
+
+      margin-bottom: 18px;  
+    }  
+
+    .championshipTitle {  
+      display: flex;  
+
+      gap: 11px;  
+    }  
+
+    .trophyBox {  
+      width: 40px;  
+      height: 40px;  
+
+      display: grid;  
+
+      place-items: center;  
+
+      flex-shrink: 0;  
+
+      border-radius: 12px;  
+
+      background:  
+        rgba(255,216,77,.08);  
+
+      border:  
+        1px solid  
+        rgba(255,216,77,.13);  
+
+      font-size: 19px;  
+    }  
+
+    .championship h2 {  
+      margin: 0;  
+
+      font-size:  
+        clamp(20px,4vw,29px);  
+
+      letter-spacing:  
+        -.7px;  
+    }  
+
+    .championshipSubtitle {  
+      margin:  
+        4px 0 0;  
+
+      color:  
+        rgba(255,255,255,.38);  
+
+      font-size: 9px;  
+
+      line-height: 1.5;  
+    }  
+
+    .leaderBadge {  
+      padding:  
+        6px 9px;  
+
+      border-radius: 999px;  
+
+      background:  
+        rgba(255,216,77,.08);  
+
+      color:  
+        #ffd84d;  
+
+      font-size: 7px;  
+
+      font-weight: 900;  
+
+      letter-spacing: .8px;  
+
+      white-space: nowrap;  
+    }  
+
+    .championLeader {  
+      position: relative;  
+
+      display: grid;  
+
+      grid-template-columns:  
+        42px  
+        minmax(0,1fr)  
+        auto;  
+
+      align-items: center;  
+
+      gap: 11px;  
+
+      padding:  
+        13px;  
+
+      margin-bottom: 8px;  
+
+      border-radius: 15px;  
+
+      background:  
+        linear-gradient(  
+          90deg,  
+          rgba(255,216,77,.10),  
+          rgba(255,255,255,.025)  
+        );  
+
+      border:  
+        1px solid  
+        rgba(255,216,77,.14);  
+    }  
+
+    .championMedal {  
+      width: 42px;  
+      height: 42px;  
+
+      display: grid;  
+
+      place-items: center;  
+
+      border-radius: 12px;  
+
+      background:  
+        rgba(255,216,77,.08);  
+
+      font-size: 21px;  
+    }  
+
+    .clubName {  
+      font-size: 14px;  
+
+      font-weight: 950;  
+    }  
+
+    .clubProgress {  
+      height: 4px;  
+
+      margin-top: 8px;  
+
+      overflow: hidden;  
+
+      border-radius: 99px;  
+
+      background:  
+        rgba(255,255,255,.07);  
+    }  
+
+    .clubProgress span {  
+      display: block;  
+
+      height: 100%;  
+
+      border-radius: inherit;  
+
+      background:  
+        linear-gradient(  
+          90deg,  
+          #ffd84d,  
+          #fff2a3  
+        );  
+    }  
+
+    .clubPoints {  
+      text-align: right;  
+    }  
+
+    .clubPoints strong {  
+      display: block;  
+
+      font-size: 23px;  
+
+      line-height: 1;  
+
+      font-weight: 950;  
+    }  
+
+    .clubPoints small {  
+      display: block;  
+
+      margin-top: 4px;  
+
+      color:  
+        rgba(255,255,255,.3);  
+
+      font-size: 7px;  
+
+      letter-spacing: 1px;  
+    }  
+
+    .overallRows {  
+      display: flex;  
+
+      flex-direction: column;  
+
+      gap: 5px;  
+    }  
+
+    .overallRowNew {  
+      display: grid;  
+
+      grid-template-columns:  
+        31px  
+        31px  
+        minmax(0,1fr)  
+        auto;  
+
+      align-items: center;  
+
+      gap: 8px;  
+
+      min-height: 49px;  
+
+      padding:  
+        5px 10px;  
+
+      border-radius: 12px;  
+
+      background:  
+        rgba(255,255,255,.025);  
+
+      border:  
+        1px solid  
+        transparent;  
+
+      transition:  
+        .2s ease;  
+    }  
+
+    .overallRowNew:hover {  
+      background:  
+        rgba(255,255,255,.05);  
+
+      border-color:  
+        rgba(255,255,255,.07);  
+    }  
+
+    .overallRank {  
+      color:  
+        rgba(255,255,255,.38);  
+
+      text-align: center;  
+
+      font-size: 10px;  
+
+      font-weight: 900;  
+    }  
+
+    .clubLogoMini {
+
+width: 28px;
+height: 28px;
+display: grid;
+place-items: center;
+flex-shrink: 0;
 }
 
 .clubLogoMini img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  display: block;
+width: 100%;
+height: 100%;
+object-fit: contain;
+display: block;
 }
 
-        .overallClubName {
-          font-size: 11px;
+.overallClubName {  
+      font-size: 11px;  
 
-          font-weight: 850;
-        }
+      font-weight: 850;  
+    }  
 
-        .overallPointsNew {
-          font-size: 14px;
+    .overallPointsNew {  
+      font-size: 14px;  
 
-          font-weight: 950;
-        }
+      font-weight: 950;  
+    }  
 
-        .viewBreakdown {
-          margin-top: 13px;
+    .viewBreakdown {  
+      margin-top: 13px;  
 
-          text-align: center;
-        }
+      text-align: center;  
+    }  
 
-        .viewBreakdown span {
-          color:
-            rgba(255,255,255,.3);
+    .viewBreakdown span {  
+      color:  
+        rgba(255,255,255,.3);  
 
-          font-size: 8px;
+      font-size: 8px;  
 
-          letter-spacing: .5px;
-        }
+      letter-spacing: .5px;  
+    }
 
         /* ====================================================
            CLUB DETAILS
