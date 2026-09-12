@@ -2676,7 +2676,13 @@ overflow: hidden;
         rgba(255,216,77,.08);  
 
       font-size: 21px;  
-    }  
+    } 
+    .championMedal img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
 
     .clubName {  
       font-size: 14px;  
