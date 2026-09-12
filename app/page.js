@@ -2851,90 +2851,13 @@ overflow: hidden;
       white-space: nowrap;  
     }  
 
-    .championLeader {  
-      position: relative;  
-
-      display: grid;  
-
-      grid-template-columns:  
-        42px  
-        minmax(0,1fr)  
-        auto;  
-
-      align-items: center;  
-
-      gap: 11px;  
-
-      padding:  
-        13px;  
-
-      margin-bottom: 8px;  
-
-      border-radius: 15px;  
-
-      background:  
-        linear-gradient(  
-          90deg,  
-          rgba(255,216,77,.10),  
-          rgba(255,255,255,.025)  
-        );  
-
-      border:  
-        1px solid  
-        rgba(255,216,77,.14);  
-    }  
-
-    .championMedal {  
-      width: 42px;  
-      height: 42px;  
-
-      display: grid;  
-
-      place-items: center;  
-
-      border-radius: 12px;  
-
-      background:  
-        rgba(255,216,77,.08);  
-
-      font-size: 21px;  
-    }  
-
-    .clubName {  
+      .clubName {  
       font-size: 14px;  
 
       font-weight: 950;  
     }  
 
-    .clubProgress {  
-      height: 4px;  
-
-      margin-top: 8px;  
-
-      overflow: hidden;  
-
-      border-radius: 99px;  
-
-      background:  
-        rgba(255,255,255,.07);  
-    }  
-
-    .clubProgress span {  
-      display: block;  
-
-      height: 100%;  
-
-      border-radius: inherit;  
-
-      background:  
-        linear-gradient(  
-          90deg,  
-          #ffd84d,  
-          #fff2a3  
-        );  
-    }  
-
-    .clubPoints {  
+      .clubPoints {  
       text-align: right;  
     }  
 
