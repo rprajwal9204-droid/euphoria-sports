@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
 
 /* ============================================================
-   CLUBS
+   EUPHORIA CLUBS
 ============================================================ */
 
 const defaultClubs = [
@@ -17,41 +17,35 @@ const defaultClubs = [
 
 const clubTheme = {
   Falcons: {
-    color: "#1688ff",
-    glow: "rgba(22,136,255,.30)",
-    icon: "🔵",
+    color: "#3B82F6",
+    glow: "rgba(59,130,246,.28)",
+    short: "FAL",
   },
+
   Eagles: {
-    color: "#ffd43b",
-    glow: "rgba(255,212,59,.24)",
-    icon: "🟡",
+    color: "#FACC15",
+    glow: "rgba(250,204,21,.24)",
+    short: "EAG",
   },
+
   Thunderbirds: {
-    color: "#a855f7",
+    color: "#A855F7",
     glow: "rgba(168,85,247,.28)",
-    icon: "🟣",
+    short: "THU",
   },
+
   Griffins: {
-    color: "#ff4d5e",
-    glow: "rgba(255,77,94,.25)",
-    icon: "🔴",
+    color: "#EF4444",
+    glow: "rgba(239,68,68,.25)",
+    short: "GRI",
   },
+
   Phoenix: {
-    color: "#ff8a32",
-    glow: "rgba(255,138,50,.25)",
-    icon: "🟠",
+    color: "#F97316",
+    glow: "rgba(249,115,22,.25)",
+    short: "PHX",
   },
 };
-
-function getClubTheme(name) {
-  return (
-    clubTheme[name] || {
-      color: "#ffffff",
-      glow: "rgba(255,255,255,.15)",
-      icon: "⚪",
-    }
-  );
-}
 
 /* ============================================================
    HELPERS
@@ -61,16 +55,25 @@ function isFinal(status) {
   return String(status || "").toLowerCase() === "final";
 }
 
+function isLive(status) {
+  return String(status || "").toLowerCase() === "live";
+}
+
+function isUpcoming(status) {
+  return (
+    String(status || "").toLowerCase() ===
+    "upcoming"
+  );
+}
+
 function isTeamEvent(event) {
   if (!event) return false;
 
-  const category = String(
-    event.category || ""
-  ).toLowerCase();
+  const category =
+    String(event.category || "").toLowerCase();
 
-  const pointsType = String(
-    event.points_type || ""
-  ).toLowerCase();
+  const pointsType =
+    String(event.points_type || "").toLowerCase();
 
   return (
     category.includes("team") ||
@@ -95,7 +98,9 @@ function numericScore(value) {
 
   const number = Number(text);
 
-  return Number.isFinite(number) ? number : null;
+  return Number.isFinite(number)
+    ? number
+    : null;
 }
 
 function cricketOversToNumber(value) {
@@ -320,10 +325,7 @@ function getResultForClub(match, clubId) {
    SPORT POINTS
 ============================================================ */
 
-function getSportPoints(
-  sport,
-  result
-) {
+function getSportPoints(sport, result) {
   const name =
     String(sport || "").toLowerCase();
 
@@ -401,6 +403,7 @@ function buildSportLeaderboard(
       cricketOversAgainst: 0,
 
       nrr: 0,
+
       points: 0,
     };
   });
@@ -652,6 +655,10 @@ function buildSportLeaderboard(
   };
 }
 
+/* ============================================================
+   FORMATTING
+============================================================ */
+
 function formatNumber(value) {
   if (
     !Number.isFinite(
@@ -689,36 +696,49 @@ function formatNRR(value) {
   return number.toFixed(3);
 }
 
-function getMedal(index) {
-  if (index === 0) return "🥇";
-  if (index === 1) return "🥈";
-  if (index === 2) return "🥉";
-
-  return index + 1;
-}
-
 function formatMatchTime(value) {
   if (!value) return "";
 
   const date = new Date(value);
 
-  if (Number.isNaN(date.getTime())) {
+  if (
+    Number.isNaN(
+      date.getTime()
+    )
+  ) {
     return "";
   }
 
-  return date.toLocaleString(
-    undefined,
-    {
-      day: "numeric",
-      month: "short",
-      hour: "numeric",
-      minute: "2-digit",
+  return date.toLocaleString([], {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function getMedal(index) {
+  if (index === 0) return "🥇";
+  if (index === 1) return "🥈";
+  if (index === 2) return "🥉";
+
+  return String(index + 1);
+}
+
+function getClubTheme(name) {
+  return (
+    clubTheme[name] || {
+      color: "#8B8B9A",
+      glow: "rgba(139,139,154,.2)",
+      short: name
+        ? name.slice(0, 3).toUpperCase()
+        : "CLB",
     }
   );
 }
 
 /* ============================================================
-   MAIN PAGE
+   MAIN
 ============================================================ */
 
 export default function Home() {
@@ -750,29 +770,18 @@ export default function Home() {
     setSelectedClub,
   ] = useState(null);
 
-  const [now, setNow] =
-    useState(Date.now());
-
   /* ============================================================
-     COUNTDOWN CLOCK
-  ============================================================ */
-
-  useEffect(() => {
-    const timer =
-      setInterval(() => {
-        setNow(Date.now());
-      }, 1000);
-
-    return () =>
-      clearInterval(timer);
-  }, []);
-
-  /* ============================================================
-     LOAD DATA
+     LOAD
   ============================================================ */
 
   async function load() {
-    setLoading(true);
+    const firstLoad =
+      matches.length === 0 &&
+      events.length === 0;
+
+    if (firstLoad) {
+      setLoading(true);
+    }
 
     const [
       {
@@ -922,38 +931,39 @@ export default function Home() {
         clubError
       );
 
-    setMatches(
-      matchData || []
-    );
+    const safeMatches =
+      matchData || [];
 
-    setEvents(
-      eventData || []
-    );
+    const safeResults =
+      resultData || [];
 
-    setClubRows(
-      clubData || []
-    );
+    const safeEvents =
+      eventData || [];
 
-    setEventResults(
-      resultData || []
-    );
+    const safeClubs =
+      clubData || [];
+
+    setMatches(safeMatches);
+    setEvents(safeEvents);
+    setClubRows(safeClubs);
+    setEventResults(safeResults);
 
     const totals = {};
 
-    (
-      resultData || []
-    ).forEach((result) => {
-      const name =
-        result.clubs?.name;
+    safeResults.forEach(
+      (result) => {
+        const name =
+          result.clubs?.name;
 
-      if (name) {
-        totals[name] =
-          (totals[name] || 0) +
-          Number(
-            result.points || 0
-          );
+        if (name) {
+          totals[name] =
+            (totals[name] || 0) +
+            Number(
+              result.points || 0
+            );
+        }
       }
-    });
+    );
 
     defaultClubs.forEach(
       (club) => {
@@ -962,19 +972,17 @@ export default function Home() {
       }
     );
 
-    (
-      clubData || []
-    ).forEach((club) => {
-      totals[club.name] =
-        totals[club.name] || 0;
-    });
+    safeClubs.forEach(
+      (club) => {
+        totals[club.name] =
+          totals[club.name] || 0;
+      }
+    );
 
     setPoints(totals);
 
     const teamEvents =
-      (
-        eventData || []
-      ).filter(
+      safeEvents.filter(
         (event) =>
           isTeamEvent(event)
       );
@@ -1055,103 +1063,57 @@ export default function Home() {
      MATCH FILTERS
   ============================================================ */
 
-  const upcomingMatches =
-    matches.filter(
-      (match) =>
-        String(
-          match.status || ""
-        ).toLowerCase() ===
-        "upcoming"
+  const liveMatches =
+    useMemo(
+      () =>
+        matches.filter(
+          (match) =>
+            isLive(match.status)
+        ),
+      [matches]
     );
 
-  const liveMatches =
-    matches.filter(
-      (match) =>
-        String(
-          match.status || ""
-        ).toLowerCase() ===
-        "live"
+  const upcomingMatches =
+    useMemo(
+      () =>
+        matches.filter(
+          (match) =>
+            isUpcoming(match.status)
+        ),
+      [matches]
     );
 
   const completedMatches =
-    matches.filter(
-      (match) =>
-        isFinal(match.status)
+    useMemo(
+      () =>
+        matches.filter(
+          (match) =>
+            isFinal(match.status)
+        ),
+      [matches]
     );
-
-  const nextMatch =
-    upcomingMatches.length > 0
-      ? upcomingMatches[0]
-      : null;
-
-  /* ============================================================
-     COUNTDOWN
-  ============================================================ */
-
-  function getCountdown(match) {
-    if (!match?.match_time) {
-      return null;
-    }
-
-    const target =
-      new Date(
-        match.match_time
-      ).getTime();
-
-    if (!Number.isFinite(target)) {
-      return null;
-    }
-
-    const difference =
-      target - now;
-
-    if (difference <= 0) {
-      return null;
-    }
-
-    const totalSeconds =
-      Math.floor(
-        difference / 1000
-      );
-
-    const days =
-      Math.floor(
-        totalSeconds / 86400
-      );
-
-    const hours =
-      Math.floor(
-        (totalSeconds % 86400) /
-          3600
-      );
-
-    const minutes =
-      Math.floor(
-        (totalSeconds % 3600) /
-          60
-      );
-
-    const seconds =
-      totalSeconds % 60;
-
-    return {
-      days,
-      hours,
-      minutes,
-      seconds,
-    };
-  }
 
   /* ============================================================
      OVERALL LEADERBOARD
   ============================================================ */
 
   const leaderboard =
-    Object.keys(points).sort(
-      (a, b) =>
-        (points[b] || 0) -
-        (points[a] || 0)
+    useMemo(
+      () =>
+        Object.keys(points).sort(
+          (a, b) =>
+            (points[b] || 0) -
+            (points[a] || 0)
+        ),
+      [points]
     );
+
+  const leaderPoints =
+    leaderboard.length
+      ? Number(
+          points[leaderboard[0]] || 0
+        )
+      : 0;
 
   /* ============================================================
      TEAM SPORTS
@@ -1219,7 +1181,8 @@ export default function Home() {
       const gender =
         match.events?.gender || "";
 
-      const key = `${sport}|||${gender}`;
+      const key =
+        `${sport}|||${gender}`;
 
       if (!completedBySport[key]) {
         completedBySport[key] = {
@@ -1229,9 +1192,9 @@ export default function Home() {
         };
       }
 
-      completedBySport[key].matches.push(
-        match
-      );
+      completedBySport[
+        key
+      ].matches.push(match);
     }
   );
 
@@ -1269,12 +1232,17 @@ export default function Home() {
      MATCH CARD
   ============================================================ */
 
-  function MatchCard({ match }) {
+  function MatchCard({
+    match,
+    compact = false,
+  }) {
     const winnerId =
       match.winner_club_id !== null &&
       match.winner_club_id !== undefined &&
       match.winner_club_id !== ""
-        ? Number(match.winner_club_id)
+        ? Number(
+            match.winner_club_id
+          )
         : null;
 
     const clubAId =
@@ -1291,152 +1259,219 @@ export default function Home() {
       winnerId !== null &&
       winnerId === clubBId;
 
+    const live =
+      isLive(match.status);
+
+    const upcoming =
+      isUpcoming(match.status);
+
+    const sport =
+      match.events?.name ||
+      "Sport";
+
+    const gender =
+      match.events?.gender ||
+      "";
+
+    const clubA =
+      match.club_a?.name ||
+      "TBD";
+
+    const clubB =
+      match.club_b?.name ||
+      "TBD";
+
     const themeA =
-      getClubTheme(
-        match.club_a?.name
-      );
+      getClubTheme(clubA);
 
     const themeB =
-      getClubTheme(
-        match.club_b?.name
-      );
-
-    const status =
-      String(
-        match.status || ""
-      ).toLowerCase();
+      getClubTheme(clubB);
 
     return (
-      <div
-        className={`match ${
-          status === "live"
-            ? "matchLive"
+      <article
+        className={`matchCard ${
+          live
+            ? "matchCardLive"
+            : ""
+        } ${
+          compact
+            ? "matchCardCompact"
             : ""
         }`}
       >
         <div className="matchTop">
-          <span>
-            {match.events?.name ||
-              "SPORT"}
-          </span>
 
-          <span
-            className={
-              status === "live"
-                ? "matchStatusLive"
-                : ""
-            }
-          >
-            {status === "live"
-              ? "● LIVE"
-              : match.status}
-          </span>
-        </div>
+          <div className="matchSportWrap">
 
-        <div className="matchTeam">
+            <span className="sportIcon">
+              {sport
+                .toLowerCase()
+                .includes("cricket")
+                ? "🏏"
+                : sport
+                    .toLowerCase()
+                    .includes("football")
+                ? "⚽"
+                : sport
+                    .toLowerCase()
+                    .includes("basket")
+                ? "🏀"
+                : sport
+                    .toLowerCase()
+                    .includes("volley")
+                ? "🏐"
+                : "🏆"}
+            </span>
+
+            <div>
+              <div className="matchSport">
+                {sport}
+              </div>
+
+              <div className="matchGender">
+                {gender}
+              </div>
+            </div>
+
+          </div>
+
           <div
-            className="clubDot"
-            style={{
-              background:
-                themeA.color,
-              boxShadow:
-                `0 0 12px ${themeA.glow}`,
-            }}
-          />
-
-          <b
-            className={
-              isWinnerA
-                ? "winnerHighlight"
-                : ""
-            }
+            className={`matchStatus ${
+              live
+                ? "liveStatus"
+                : upcoming
+                ? "upcomingStatus"
+                : "finalStatus"
+            }`}
           >
-            {match.club_a?.name ||
-              "TBD"}
-          </b>
+            {live && (
+              <span className="liveDot" />
+            )}
 
-          <strong
-            className={
-              isWinnerA
-                ? "winnerScoreHighlight"
-                : ""
-            }
-          >
-            {match.score_a ||
-              "—"}
-          </strong>
+            {live
+              ? "LIVE"
+              : upcoming
+              ? "UP NEXT"
+              : "FINAL"}
+          </div>
+
         </div>
 
-        <div className="matchTeam">
+        <div className="matchTeams">
+
           <div
-            className="clubDot"
-            style={{
-              background:
-                themeB.color,
-              boxShadow:
-                `0 0 12px ${themeB.glow}`,
-            }}
-          />
-
-          <b
-            className={
-              isWinnerB
-                ? "winnerHighlight"
+            className={`matchTeam ${
+              isWinnerA
+                ? "winnerTeam"
                 : ""
-            }
+            }`}
           >
-            {match.club_b?.name ||
-              "TBD"}
-          </b>
 
-          <strong
-            className={
+            <span
+              className="teamAccent"
+              style={{
+                background:
+                  themeA.color,
+                boxShadow:
+                  `0 0 14px ${themeA.glow}`,
+              }}
+            />
+
+            <span className="teamName">
+              {clubA}
+            </span>
+
+            <strong className="teamScore">
+              {match.score_a ??
+                "—"}
+            </strong>
+
+          </div>
+
+          <div className="vs">
+            VS
+          </div>
+
+          <div
+            className={`matchTeam ${
               isWinnerB
-                ? "winnerScoreHighlight"
+                ? "winnerTeam"
                 : ""
-            }
+            }`}
           >
-            {match.score_b ||
-              "—"}
-          </strong>
+
+            <span
+              className="teamAccent"
+              style={{
+                background:
+                  themeB.color,
+                boxShadow:
+                  `0 0 14px ${themeB.glow}`,
+              }}
+            />
+
+            <span className="teamName">
+              {clubB}
+            </span>
+
+            <strong className="teamScore">
+              {match.score_b ??
+                "—"}
+            </strong>
+
+          </div>
+
         </div>
 
-        <div className="matchMeta">
+        <div className="matchBottom">
+
           <span>
-            {match.events?.gender}
+            {upcoming &&
+            match.match_time
+              ? formatMatchTime(
+                  match.match_time
+                )
+              : live
+              ? "Playing now"
+              : "Completed"}
           </span>
 
-          {match.match_time && (
-            <span>
-              {formatMatchTime(
-                match.match_time
-              )}
+          {live && (
+            <span className="playingNow">
+              ● PLAYING NOW
             </span>
           )}
+
         </div>
-      </div>
+
+      </article>
     );
   }
 
   /* ============================================================
-     RETURN
+     RENDER
   ============================================================ */
 
   return (
-    <main>
+    <main className="euphoriaPage">
 
-      <style jsx>{`
+      <style jsx global>{`
 
-        :global(html) {
+        * {
+          box-sizing: border-box;
+        }
+
+        html {
           scroll-behavior: smooth;
         }
 
-        :global(body) {
+        body {
           margin: 0;
-          background: #07080d;
+          background: #08090f;
           color: #f5f5f7;
           font-family:
             Inter,
+            ui-sans-serif,
             system-ui,
             -apple-system,
             BlinkMacSystemFont,
@@ -1444,110 +1479,72 @@ export default function Home() {
             sans-serif;
         }
 
-        * {
-          box-sizing: border-box;
+        button,
+        select {
+          font: inherit;
         }
 
-        main {
+        /* ====================================================
+           PAGE BACKGROUND
+        ==================================================== */
+
+        .euphoriaPage {
           min-height: 100vh;
+
+          position: relative;
+
           overflow-x: hidden;
 
           background:
             radial-gradient(
-              circle at 15% 5%,
-              rgba(92, 47, 255, .16),
-              transparent 28%
+              circle at 50% -10%,
+              rgba(104,67,255,.23),
+              transparent 35%
             ),
             radial-gradient(
-              circle at 90% 25%,
-              rgba(0, 157, 255, .10),
+              circle at 0% 35%,
+              rgba(30,100,255,.08),
               transparent 30%
             ),
-            linear-gradient(
-              180deg,
-              #07080d 0%,
-              #0a0a12 45%,
-              #07080d 100%
-            );
+            radial-gradient(
+              circle at 100% 65%,
+              rgba(180,60,255,.07),
+              transparent 28%
+            ),
+            #08090f;
         }
 
-        /* ====================================================
-           AMBIENT BACKGROUND
-        ==================================================== */
-
-        main::before {
+        .euphoriaPage::before {
           content: "";
+
           position: fixed;
+
           inset: 0;
 
           pointer-events: none;
-          z-index: 0;
 
-          background:
+          opacity: .035;
+
+          background-image:
             linear-gradient(
-              115deg,
-              transparent 0%,
-              rgba(255,255,255,.018) 48%,
-              transparent 52%
+              rgba(255,255,255,.6) 1px,
+              transparent 1px
+            ),
+            linear-gradient(
+              90deg,
+              rgba(255,255,255,.6) 1px,
+              transparent 1px
             );
 
-          background-size: 260% 260%;
+          background-size:
+            60px 60px;
 
-          animation:
-            atmosphere 18s ease-in-out infinite;
-        }
-
-        main::after {
-          content: "";
-          position: fixed;
-
-          width: 380px;
-          height: 380px;
-
-          left: -180px;
-          top: 35%;
-
-          border-radius: 50%;
-
-          background:
-            rgba(73, 42, 255, .10);
-
-          filter: blur(90px);
-
-          pointer-events: none;
-          z-index: 0;
-
-          animation:
-            floatGlow 12s ease-in-out infinite;
-        }
-
-        @keyframes atmosphere {
-          0%, 100% {
-            opacity: .35;
-            transform: translateX(-3%);
-          }
-
-          50% {
-            opacity: .8;
-            transform: translateX(3%);
-          }
-        }
-
-        @keyframes floatGlow {
-          0%, 100% {
-            transform: translateY(-20px);
-          }
-
-          50% {
-            transform: translateY(80px);
-          }
-        }
-
-        header,
-        .hero,
-        .wrap {
-          position: relative;
-          z-index: 1;
+          mask-image:
+            linear-gradient(
+              to bottom,
+              black,
+              transparent 80%
+            );
         }
 
         /* ====================================================
@@ -1555,62 +1552,80 @@ export default function Home() {
         ==================================================== */
 
         header {
-          width: min(
-            1180px,
-            calc(100% - 32px)
-          );
-
-          margin: auto;
-
-          height: 72px;
+          height: 66px;
 
           display: flex;
+
           align-items: center;
+
           justify-content: space-between;
 
-          border-bottom: 1px solid
-            rgba(255,255,255,.08);
+          padding:
+            0
+            max(20px, calc((100vw - 1180px) / 2));
+
+          position: relative;
+
+          z-index: 10;
+
+          border-bottom:
+            1px solid
+            rgba(255,255,255,.07);
+
+          background:
+            rgba(8,9,15,.72);
+
+          backdrop-filter:
+            blur(18px);
+
+          -webkit-backdrop-filter:
+            blur(18px);
         }
 
         .logo {
           font-size: 15px;
+
           font-weight: 950;
+
           letter-spacing: 2px;
         }
 
         .logo span {
           opacity: .42;
+
           font-weight: 700;
         }
 
-        header a {
-          color: #fff;
+        .adminLink {
           text-decoration: none;
 
+          color: rgba(255,255,255,.7);
+
           font-size: 10px;
+
           font-weight: 900;
 
-          letter-spacing: 1px;
+          letter-spacing: 1.3px;
 
-          padding: 9px 12px;
+          padding:
+            8px
+            11px;
 
-          border-radius: 999px;
-
-          background:
-            rgba(255,255,255,.06);
-
-          border: 1px solid
+          border:
+            1px solid
             rgba(255,255,255,.10);
+
+          border-radius: 9px;
 
           transition:
-            transform .2s ease,
-            background .2s ease;
+            .2s ease;
         }
 
-        header a:hover {
-          transform: translateY(-2px);
-          background:
-            rgba(255,255,255,.10);
+        .adminLink:hover {
+          color: white;
+
+          border-color:
+            rgba(255,255,255,.25);
         }
 
         /* ====================================================
@@ -1618,152 +1633,177 @@ export default function Home() {
         ==================================================== */
 
         .hero {
-          width: min(
-            1180px,
-            calc(100% - 32px)
-          );
+          max-width: 1180px;
 
-          margin: auto;
-
-          min-height: 390px;
-
-          display: flex;
-          flex-direction: column;
-          justify-content: center;
+          margin:
+            0 auto;
 
           padding:
-            80px 0 70px;
+            74px 24px 64px;
+
+          position: relative;
         }
 
-        .hero::before {
+        .hero::after {
           content: "";
 
           position: absolute;
 
-          width: 500px;
-          height: 500px;
+          width: 280px;
+          height: 280px;
 
-          left: -160px;
-          top: -150px;
+          right: 4%;
+          top: 20px;
+
+          border-radius: 50%;
 
           background:
-            radial-gradient(
-              circle,
-              rgba(100,58,255,.22),
-              transparent 68%
-            );
+            rgba(111,62,255,.15);
 
-          filter: blur(20px);
+          filter:
+            blur(80px);
 
           pointer-events: none;
         }
 
-        .hero small {
-          position: relative;
+        .heroEyebrow {
+          display: inline-flex;
 
-          color: #b89cff;
+          align-items: center;
 
-          font-size: 10px;
-          font-weight: 950;
+          gap: 8px;
 
-          letter-spacing: 3px;
+          padding:
+            7px
+            11px;
 
-          animation:
-            fadeUp .7s ease both;
+          border-radius: 999px;
+
+          background:
+            rgba(255,255,255,.045);
+
+          border:
+            1px solid
+            rgba(255,255,255,.08);
+
+          color:
+            rgba(255,255,255,.56);
+
+          font-size: 9px;
+
+          font-weight: 900;
+
+          letter-spacing: 1.8px;
+
+          text-transform: uppercase;
+        }
+
+        .heroEyebrowDot {
+          width: 6px;
+          height: 6px;
+
+          border-radius: 50%;
+
+          background:
+            #9b6cff;
+
+          box-shadow:
+            0 0 12px
+            rgba(155,108,255,.8);
         }
 
         .hero h1 {
           position: relative;
 
-          margin:
-            16px 0 16px;
+          z-index: 1;
 
-          max-width: 800px;
+          margin:
+            20px 0 0;
+
+          max-width: 850px;
 
           font-size:
-            clamp(55px, 10vw, 118px);
+            clamp(52px, 10vw, 108px);
 
-          line-height: .82;
+          line-height:
+            .82;
 
           letter-spacing:
-            -6px;
+            -5px;
 
-          font-weight: 1000;
+          font-weight:
+            950;
+        }
+
+        .hero h1 span {
+          display: block;
 
           background:
             linear-gradient(
-              120deg,
-              #fff 20%,
-              #b7a3ff 55%,
-              #72c9ff 100%
+              110deg,
+              #fff 10%,
+              #b99cff 50%,
+              #fff 90%
             );
 
-          -webkit-background-clip: text;
-          background-clip: text;
-          color: transparent;
+          -webkit-background-clip:
+            text;
 
-          animation:
-            fadeUp .8s .08s ease both;
-        }
-
-        .hero p {
-          position: relative;
-
-          max-width: 500px;
-
-          margin: 0;
+          background-clip:
+            text;
 
           color:
-            rgba(255,255,255,.57);
+            transparent;
+        }
+
+        .heroText {
+          position: relative;
+
+          z-index: 1;
+
+          max-width: 520px;
+
+          margin-top: 25px;
+
+          color:
+            rgba(255,255,255,.54);
 
           font-size: 14px;
-          line-height: 1.7;
 
-          animation:
-            fadeUp .8s .16s ease both;
+          line-height: 1.7;
         }
 
         .heroStats {
-          position: relative;
-
           display: flex;
-          gap: 10px;
-
-          margin-top: 28px;
 
           flex-wrap: wrap;
+
+          gap: 9px;
+
+          margin-top: 30px;
         }
 
-        .heroPill {
-          padding: 9px 13px;
+        .heroStat {
+          padding:
+            10px 13px;
 
-          border-radius: 999px;
+          border-radius: 11px;
 
           background:
-            rgba(255,255,255,.055);
+            rgba(255,255,255,.045);
 
-          border: 1px solid
-            rgba(255,255,255,.08);
+          border:
+            1px solid
+            rgba(255,255,255,.075);
 
           color:
             rgba(255,255,255,.72);
 
-          font-size: 9px;
-          font-weight: 850;
+          font-size: 10px;
 
-          letter-spacing: .7px;
-        }
+          font-weight: 800;
 
-        @keyframes fadeUp {
-          from {
-            opacity: 0;
-            transform: translateY(18px);
-          }
-
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
+          letter-spacing: .5px;
         }
 
         /* ====================================================
@@ -1771,121 +1811,63 @@ export default function Home() {
         ==================================================== */
 
         .wrap {
-          width: min(
-            1180px,
-            calc(100% - 32px)
-          );
+          width: 100%;
 
-          margin: auto;
+          max-width: 1180px;
 
-          padding-bottom: 80px;
-        }
+          margin: 0 auto;
 
-        /* ====================================================
-           SECTION HEADERS
-        ==================================================== */
-
-        .sectionHeader {
-          display: flex;
-          align-items: flex-end;
-          justify-content: space-between;
-
-          gap: 15px;
-
-          margin-bottom: 15px;
-        }
-
-        .sectionHeader h2 {
-          margin: 0;
-
-          font-size: 20px;
-          letter-spacing: -.4px;
-        }
-
-        .sectionHeader p {
-          margin: 5px 0 0;
-
-          font-size: 11px;
-          opacity: .48;
-        }
-
-        .eyebrow {
-          display: block;
-
-          margin-bottom: 6px;
-
-          color: #a994ff;
-
-          font-size: 9px;
-          font-weight: 900;
-
-          letter-spacing: 2px;
-        }
-
-        /* ====================================================
-           GLASS CARD
-        ==================================================== */
-
-        .card {
-          position: relative;
-
-          border-radius: 24px;
-
-          padding: 22px;
-
-          background:
-            linear-gradient(
-              145deg,
-              rgba(255,255,255,.075),
-              rgba(255,255,255,.025)
-            );
-
-          border: 1px solid
-            rgba(255,255,255,.085);
-
-          box-shadow:
-            0 20px 60px
-              rgba(0,0,0,.24),
-            inset 0 1px 0
-              rgba(255,255,255,.055);
-
-          backdrop-filter:
-            blur(22px);
-
-          -webkit-backdrop-filter:
-            blur(22px);
-
-          overflow: hidden;
-        }
-
-        .card::before {
-          content: "";
-
-          position: absolute;
-
-          width: 180px;
-          height: 180px;
-
-          right: -100px;
-          top: -100px;
-
-          border-radius: 50%;
-
-          background:
-            rgba(120,80,255,.10);
-
-          filter: blur(40px);
-
-          pointer-events: none;
+          padding:
+            0 24px 70px;
         }
 
         .section {
-          margin-top: 20px;
+          margin-top: 28px;
         }
 
-        .muted {
+        .sectionHeading {
+          display: flex;
+
+          align-items: flex-end;
+
+          justify-content: space-between;
+
+          gap: 20px;
+
+          margin-bottom: 14px;
+        }
+
+        .sectionHeading h2 {
+          margin: 0;
+
+          font-size:
+            clamp(22px, 4vw, 32px);
+
+          letter-spacing:
+            -.8px;
+        }
+
+        .sectionHeading p {
+          margin:
+            5px 0 0;
+
           color:
-            rgba(255,255,255,.43);
+            rgba(255,255,255,.42);
+
+          font-size: 11px;
+        }
+
+        .sectionLabel {
+          color:
+            rgba(255,255,255,.35);
+
+          font-size: 9px;
+
+          font-weight: 900;
+
+          letter-spacing: 1.6px;
+
+          text-transform: uppercase;
         }
 
         /* ====================================================
@@ -1896,182 +1878,347 @@ export default function Home() {
           display: grid;
 
           grid-template-columns:
-            1.1fr
-            .9fr;
+            minmax(0, 1.35fr)
+            minmax(280px, .65fr);
 
-          gap: 18px;
-
-          margin-bottom: 20px;
+          gap: 15px;
         }
 
-        .matchCenterCard {
-          min-height: 230px;
+        .matchPanel {
+          position: relative;
+
+          overflow: hidden;
+
+          padding: 20px;
+
+          border-radius: 22px;
+
+          background:
+            linear-gradient(
+              145deg,
+              rgba(255,255,255,.065),
+              rgba(255,255,255,.025)
+            );
+
+          border:
+            1px solid
+            rgba(255,255,255,.085);
         }
 
-        .matchCenterCard.liveCard {
+        .matchPanelLive {
           background:
             radial-gradient(
-              circle at 90% 0%,
-              rgba(255,50,70,.12),
+              circle at 100% 0%,
+              rgba(255,50,50,.12),
               transparent 35%
             ),
             linear-gradient(
               145deg,
-              rgba(255,255,255,.08),
+              rgba(255,255,255,.065),
               rgba(255,255,255,.025)
             );
         }
 
-        .liveBadge {
-          display: inline-flex;
+        .panelHeader {
+          display: flex;
 
           align-items: center;
-          gap: 7px;
 
-          color: #ff5969;
+          justify-content: space-between;
 
-          font-size: 10px;
-          font-weight: 950;
-
-          letter-spacing: 1.4px;
+          margin-bottom: 13px;
         }
 
-        .liveDot {
-          width: 7px;
-          height: 7px;
-
-          border-radius: 50%;
-
-          background: #ff4055;
-
-          box-shadow:
-            0 0 0 0
-              rgba(255,64,85,.55);
-
-          animation:
-            livePulse 1.7s infinite;
-        }
-
-        @keyframes livePulse {
-          0% {
-            box-shadow:
-              0 0 0 0
-                rgba(255,64,85,.55);
-          }
-
-          70% {
-            box-shadow:
-              0 0 0 9px
-                rgba(255,64,85,0);
-          }
-
-          100% {
-            box-shadow:
-              0 0 0 0
-                rgba(255,64,85,0);
-          }
-        }
-
-        .matchCenterCard h2 {
-          margin:
-            8px 0 15px;
-
-          font-size: 23px;
-        }
-
-        .emptyState {
-          min-height: 120px;
-
+        .panelTitle {
           display: flex;
-          flex-direction: column;
-          justify-content: center;
 
-          color:
-            rgba(255,255,255,.45);
+          align-items: center;
+
+          gap: 9px;
         }
 
-        .emptyState strong {
-          color:
-            rgba(255,255,255,.72);
+        .panelIcon {
+          width: 31px;
+          height: 31px;
+
+          display: grid;
+
+          place-items: center;
+
+          border-radius: 9px;
+
+          background:
+            rgba(255,255,255,.06);
 
           font-size: 14px;
         }
 
-        .emptyState span {
-          margin-top: 5px;
+        .panelTitle strong {
+          display: block;
 
-          font-size: 11px;
+          font-size: 13px;
+
+          font-weight: 900;
+        }
+
+        .panelTitle span {
+          display: block;
+
+          margin-top: 2px;
+
+          font-size: 8px;
+
+          color:
+            rgba(255,255,255,.38);
+
+          text-transform:
+            uppercase;
+
+          letter-spacing:
+            1px;
+        }
+
+        .panelCount {
+          padding:
+            5px 8px;
+
+          border-radius: 999px;
+
+          background:
+            rgba(255,255,255,.05);
+
+          color:
+            rgba(255,255,255,.45);
+
+          font-size: 8px;
+
+          font-weight: 900;
+        }
+
+        .emptyState {
+          padding:
+            26px 8px 17px;
+
+          text-align: center;
+
+          color:
+            rgba(255,255,255,.34);
+        }
+
+        .emptyIcon {
+          font-size: 22px;
+
+          margin-bottom: 7px;
+
+          opacity: .55;
+        }
+
+        .emptyState strong {
+          display: block;
+
+          font-size: 12px;
+
+          color:
+            rgba(255,255,255,.55);
+        }
+
+        .emptyState span {
+          display: block;
+
+          margin-top: 4px;
+
+          font-size: 9px;
         }
 
         /* ====================================================
-           MATCH
+           MATCH CARD
         ==================================================== */
 
-        .match {
+        .matchCard {
           position: relative;
 
-          margin-top: 10px;
+          overflow: hidden;
 
-          padding: 14px 15px;
+          margin-top: 9px;
 
-          border-radius: 17px;
+          padding: 15px;
+
+          border-radius: 16px;
 
           background:
-            rgba(255,255,255,.045);
+            rgba(5,6,11,.36);
 
-          border: 1px solid
+          border:
+            1px solid
             rgba(255,255,255,.065);
 
           transition:
             transform .2s ease,
-            background .2s ease,
-            border .2s ease;
+            border-color .2s ease,
+            background .2s ease;
         }
 
-        .match:hover {
-          transform: translateY(-2px);
+        .matchCard:hover {
+          transform:
+            translateY(-2px);
+
+          border-color:
+            rgba(255,255,255,.14);
 
           background:
-            rgba(255,255,255,.065);
-
-          border-color:
-            rgba(255,255,255,.12);
+            rgba(255,255,255,.045);
         }
 
-        .matchLive {
+        .matchCardLive {
           border-color:
-            rgba(255,65,85,.25);
+            rgba(255,75,75,.20);
 
           box-shadow:
-            inset 3px 0 0 #ff4055;
+            inset 2px 0 0
+            rgba(255,75,75,.8);
         }
 
         .matchTop {
           display: flex;
+
+          align-items: center;
+
           justify-content: space-between;
 
-          margin-bottom: 10px;
+          gap: 10px;
 
-          color:
-            rgba(255,255,255,.42);
-
-          font-size: 8px;
-          font-weight: 850;
-
-          letter-spacing: .9px;
-
-          text-transform: uppercase;
+          margin-bottom: 12px;
         }
 
-        .matchStatusLive {
-          color: #ff5969;
+        .matchSportWrap {
+          display: flex;
+
+          align-items: center;
+
+          gap: 8px;
+        }
+
+        .sportIcon {
+          width: 27px;
+          height: 27px;
+
+          display: grid;
+
+          place-items: center;
+
+          border-radius: 8px;
+
+          background:
+            rgba(255,255,255,.05);
+
+          font-size: 13px;
+        }
+
+        .matchSport {
+          font-size: 11px;
+
+          font-weight: 900;
+        }
+
+        .matchGender {
+          margin-top: 2px;
+
+          color:
+            rgba(255,255,255,.34);
+
+          font-size: 8px;
+
+          font-weight: 700;
+
+          text-transform:
+            uppercase;
+
+          letter-spacing: .7px;
+        }
+
+        .matchStatus {
+          display: flex;
+
+          align-items: center;
+
+          gap: 5px;
+
+          padding:
+            5px 8px;
+
+          border-radius: 999px;
+
+          font-size: 7px;
+
+          font-weight: 950;
+
+          letter-spacing: 1px;
+        }
+
+        .liveStatus {
+          color: #ff6666;
+
+          background:
+            rgba(255,60,60,.08);
+        }
+
+        .upcomingStatus {
+          color: #ffd84d;
+
+          background:
+            rgba(255,216,77,.07);
+        }
+
+        .finalStatus {
+          color:
+            rgba(255,255,255,.36);
+
+          background:
+            rgba(255,255,255,.045);
+        }
+
+        .liveDot {
+          width: 5px;
+          height: 5px;
+
+          border-radius: 50%;
+
+          background:
+            #ff4d4d;
+
+          box-shadow:
+            0 0 9px
+            rgba(255,60,60,.9);
+
+          animation:
+            pulseLive 1.4s infinite;
+        }
+
+        @keyframes pulseLive {
+          0%, 100% {
+            opacity: 1;
+            transform: scale(1);
+          }
+
+          50% {
+            opacity: .45;
+            transform: scale(.72);
+          }
+        }
+
+        .matchTeams {
+          display: flex;
+
+          flex-direction: column;
+
+          gap: 5px;
         }
 
         .matchTeam {
           display: grid;
 
           grid-template-columns:
-            9px
+            4px
             minmax(0,1fr)
             auto;
 
@@ -2079,183 +2226,283 @@ export default function Home() {
 
           gap: 9px;
 
-          min-height: 29px;
-        }
-
-        .clubDot {
-          width: 7px;
-          height: 7px;
-
-          border-radius: 50%;
-        }
-
-        .matchTeam b {
-          font-size: 14px;
-        }
-
-        .matchTeam strong {
-          font-size: 17px;
-          font-weight: 950;
-        }
-
-        .matchMeta {
-          display: flex;
-          justify-content: space-between;
-
-          margin-top: 9px;
-          padding-top: 8px;
-
-          border-top: 1px solid
-            rgba(255,255,255,.055);
-
-          color:
-            rgba(255,255,255,.38);
-
-          font-size: 8px;
-        }
-
-        .winnerHighlight {
-          color: #ffd84d !important;
-          font-weight: 950 !important;
-        }
-
-        .winnerScoreHighlight {
-          color: #ffd84d !important;
-          font-weight: 950 !important;
-        }
-
-        /* ====================================================
-           NEXT UP
-        ==================================================== */
-
-        .nextUp {
-          display: flex;
-          flex-direction: column;
-          justify-content: space-between;
-        }
-
-        .nextUpLabel {
-          color: #ffd84d;
-
-          font-size: 9px;
-          font-weight: 950;
-
-          letter-spacing: 1.5px;
-        }
-
-        .nextUpSport {
-          margin-top: 7px;
-
-          font-size: 11px;
-          opacity: .55;
-        }
-
-        .nextTeams {
-          display: grid;
-
-          grid-template-columns:
-            1fr
-            auto
-            1fr;
-
-          align-items: center;
-
-          gap: 12px;
-
-          margin-top: 18px;
-        }
-
-        .nextTeam {
-          text-align: center;
-        }
-
-        .nextTeamIcon {
-          width: 46px;
-          height: 46px;
-
-          margin:
-            0 auto 8px;
-
-          display: flex;
-          align-items: center;
-          justify-content: center;
-
-          border-radius: 15px;
-
-          background:
-            rgba(255,255,255,.055);
-
-          border: 1px solid
-            rgba(255,255,255,.09);
-
-          font-size: 20px;
-        }
-
-        .nextTeamName {
-          font-size: 12px;
-          font-weight: 900;
-        }
-
-        .vs {
-          font-size: 9px;
-          font-weight: 950;
-          opacity: .38;
-        }
-
-        .countdown {
-          display: flex;
-
-          justify-content: center;
-
-          gap: 7px;
-
-          margin-top: 18px;
-        }
-
-        .timeBox {
-          min-width: 48px;
+          min-height: 40px;
 
           padding:
-            9px 6px;
+            6px 9px;
 
-          border-radius: 12px;
-
-          text-align: center;
+          border-radius: 10px;
 
           background:
-            rgba(0,0,0,.22);
-
-          border: 1px solid
-            rgba(255,255,255,.07);
+            rgba(255,255,255,.025);
         }
 
-        .timeBox strong {
-          display: block;
+        .teamAccent {
+          width: 4px;
+          height: 22px;
 
-          font-size: 17px;
+          border-radius: 999px;
+        }
+
+        .teamName {
+          min-width: 0;
+
+          overflow: hidden;
+
+          text-overflow: ellipsis;
+
+          white-space: nowrap;
+
+          font-size: 12px;
+
+          font-weight: 850;
+        }
+
+        .teamScore {
+          font-size: 18px;
+
           line-height: 1;
 
           font-weight: 950;
         }
 
-        .timeBox span {
-          display: block;
-
-          margin-top: 5px;
-
-          font-size: 7px;
-          letter-spacing: 1px;
-
-          opacity: .4;
+        .winnerTeam {
+          background:
+            rgba(255,216,77,.055);
         }
 
-        .nextDate {
+        .winnerTeam .teamName,
+        .winnerTeam .teamScore {
+          color:
+            #ffd84d;
+        }
+
+        .vs {
+          position: absolute;
+
+          left: 50%;
+
+          transform:
+            translateX(-50%);
+
+          margin-top: 38px;
+
+          width: 20px;
+          height: 20px;
+
+          display: grid;
+
+          place-items: center;
+
+          border-radius: 50%;
+
+          background:
+            #171821;
+
+          border:
+            1px solid
+            rgba(255,255,255,.07);
+
+          color:
+            rgba(255,255,255,.27);
+
+          font-size: 6px;
+
+          font-weight: 900;
+
+          z-index: 2;
+        }
+
+        .matchBottom {
+          display: flex;
+
+          justify-content: space-between;
+
+          align-items: center;
+
+          gap: 8px;
+
           margin-top: 10px;
 
-          text-align: center;
+          padding-top: 9px;
 
-          font-size: 9px;
-          opacity: .4;
+          border-top:
+            1px solid
+            rgba(255,255,255,.045);
+
+          color:
+            rgba(255,255,255,.32);
+
+          font-size: 8px;
+
+          font-weight: 700;
+        }
+
+        .playingNow {
+          color:
+            #ff6666;
+
+          letter-spacing:
+            .5px;
+        }
+
+        /* ====================================================
+           COMPLETED
+        ==================================================== */
+
+        .completedBox {
+          position: relative;
+
+          overflow: hidden;
+
+          padding: 22px;
+
+          border-radius: 22px;
+
+          background:
+            linear-gradient(
+              145deg,
+              rgba(255,255,255,.055),
+              rgba(255,255,255,.018)
+            );
+
+          border:
+            1px solid
+            rgba(255,255,255,.08);
+        }
+
+        .completedGroup {
+          margin-top: 9px;
+
+          overflow: hidden;
+
+          border-radius: 14px;
+
+          border:
+            1px solid
+            rgba(255,255,255,.06);
+
+          background:
+            rgba(255,255,255,.018);
+        }
+
+        .completedGroup summary {
+          display: flex;
+
+          align-items: center;
+
+          justify-content: space-between;
+
+          gap: 12px;
+
+          padding:
+            13px 14px;
+
+          cursor: pointer;
+
+          list-style: none;
+        }
+
+        .completedGroup summary::-webkit-details-marker {
+          display: none;
+        }
+
+        .completedGroup summary::after {
+          content:
+            "+";
+
+          width: 23px;
+          height: 23px;
+
+          display: grid;
+
+          place-items: center;
+
+          flex-shrink: 0;
+
+          border-radius: 7px;
+
+          background:
+            rgba(255,255,255,.05);
+
+          color:
+            rgba(255,255,255,.45);
+
+          font-size: 15px;
+        }
+
+        .completedGroup[open]
+          summary::after {
+          content:
+            "−";
+        }
+
+        .completedTitle {
+          min-width: 0;
+        }
+
+        .completedTitle strong {
+          display: block;
+
+          font-size: 11px;
+
+          font-weight: 900;
+        }
+
+        .completedTitle span {
+          display: block;
+
+          margin-top: 3px;
+
+          color:
+            rgba(255,255,255,.35);
+
+          font-size: 8px;
+        }
+
+        .completedMatches {
+          padding:
+            0 9px 9px;
+        }
+
+        .matchCardCompact {
+          margin-top: 7px;
+
+          padding: 12px;
+
+          border-radius: 12px;
+
+          background:
+            rgba(0,0,0,.16);
+        }
+
+        .matchCardCompact .sportIcon {
+          display: none;
+        }
+
+        .matchCardCompact .matchTop {
+          margin-bottom: 8px;
+        }
+
+        .matchCardCompact .matchTeam {
+          min-height: 34px;
+
+          padding:
+            5px 8px;
+        }
+
+        .matchCardCompact .teamName {
+          font-size: 11px;
+        }
+
+        .matchCardCompact .teamScore {
+          font-size: 15px;
+        }
+
+        .matchCardCompact .matchBottom {
+          margin-top: 7px;
+
+          padding-top: 7px;
         }
 
         /* ====================================================
@@ -2269,490 +2516,35 @@ export default function Home() {
 
           padding: 25px;
 
-          border-radius: 25px;
+          border-radius: 24px;
 
           background:
             radial-gradient(
               circle at 100% 0%,
-              rgba(125,77,255,.20),
-              transparent 38%
+              rgba(118,67,255,.18),
+              transparent 36%
             ),
             radial-gradient(
               circle at 0% 100%,
-              rgba(0,170,255,.10),
+              rgba(30,120,255,.08),
               transparent 35%
             ),
-            rgba(18,19,34,.82);
+            rgba(15,16,26,.86);
 
-          border: 1px solid
-            rgba(255,255,255,.10);
+          border:
+            1px solid
+            rgba(255,255,255,.09);
 
           box-shadow:
             0 25px 70px
-              rgba(0,0,0,.25);
+            rgba(0,0,0,.2);
         }
 
         .championshipHeader {
-          position: relative;
-
           display: flex;
 
-          align-items: flex-end;
-          justify-content: space-between;
+          align-items: flex-start;
 
-          gap: 15px;
-
-          margin-bottom: 20px;
-        }
-
-        .championshipHeader h2 {
-          margin: 0;
-
-          font-size: 25px;
-        }
-
-        .championshipHeader p {
-          margin: 5px 0 0;
-
-          max-width: 460px;
-
-          font-size: 11px;
-          line-height: 1.5;
-
-          opacity: .45;
-        }
-
-        .championshipTag {
-          padding:
-            8px 11px;
-
-          border-radius: 999px;
-
-          background:
-            rgba(255,255,255,.06);
-
-          border: 1px solid
-            rgba(255,255,255,.09);
-
-          font-size: 8px;
-          font-weight: 900;
-
-          letter-spacing: 1px;
-
-          white-space: nowrap;
-        }
-
-        .overallRow {
-          position: relative;
-
-          display: grid;
-
-          grid-template-columns:
-            52px
-            minmax(0,1fr)
-            100px;
-
-          align-items: center;
-
-          gap: 12px;
-
-          min-height: 72px;
-
-          padding:
-            9px 13px;
-
-          margin-top: 5px;
-
-          border-radius: 16px;
-
-          border: 1px solid
-            transparent;
-
-          transition:
-            transform .2s ease,
-            background .2s ease;
-        }
-
-        .overallRow:hover {
-          transform:
-            translateX(4px);
-
-          background:
-            rgba(255,255,255,.045);
-        }
-
-        .overallRow.first {
-          background:
-            linear-gradient(
-              90deg,
-              rgba(255,216,77,.11),
-              rgba(255,255,255,.025)
-            );
-
-          border-color:
-            rgba(255,216,77,.12);
-        }
-
-        .overallRow.second {
-          background:
-            rgba(255,255,255,.025);
-        }
-
-        .overallRow.third {
-          background:
-            rgba(255,255,255,.018);
-        }
-
-        .overallPosition {
-          display: flex;
-
-          align-items: center;
-          justify-content: center;
-
-          width: 42px;
-          height: 42px;
-
-          border-radius: 13px;
-
-          background:
-            rgba(255,255,255,.055);
-
-          font-size: 16px;
-          font-weight: 950;
-        }
-
-        .overallClub {
-          min-width: 0;
-        }
-
-        .clubButton {
-          appearance: none;
-
-          border: 0;
-          background: transparent;
-
-          padding: 0;
-
-          color: inherit;
-
-          cursor: pointer;
-
-          display: flex;
-          align-items: center;
-
-          gap: 9px;
-
-          font-size: 15px;
-          font-weight: 950;
-        }
-
-        .clubButton:hover {
-          text-decoration: underline;
-        }
-
-        .clubColor {
-          width: 8px;
-          height: 8px;
-
-          flex: 0 0 auto;
-
-          border-radius: 50%;
-        }
-
-        .rankBar {
-          height: 4px;
-
-          margin-top: 9px;
-
-          max-width: 340px;
-
-          border-radius: 999px;
-
-          background:
-            rgba(255,255,255,.07);
-
-          overflow: hidden;
-        }
-
-        .rankBarInner {
-          height: 100%;
-
-          border-radius: inherit;
-
-          transition:
-            width .8s ease;
-        }
-
-        .overallPoints {
-          text-align: right;
-        }
-
-        .overallPoints strong {
-          display: block;
-
-          font-size: 25px;
-          line-height: 1;
-
-          font-weight: 1000;
-        }
-
-        .overallPoints span {
-          display: block;
-
-          margin-top: 5px;
-
-          font-size: 7px;
-          letter-spacing: 1px;
-
-          opacity: .35;
-        }
-
-        /* ====================================================
-           CLUB DETAILS
-        ==================================================== */
-
-        .clubDetails {
-          margin-top: 15px;
-
-          padding: 18px;
-
-          border-radius: 18px;
-
-          background:
-            rgba(0,0,0,.18);
-
-          border: 1px solid
-            rgba(255,255,255,.08);
-
-          animation:
-            fadeUp .3s ease both;
-        }
-
-        .clubDetailsHeader {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-
-          gap: 10px;
-
-          margin-bottom: 12px;
-        }
-
-        .clubDetailsHeader h3 {
-          margin: 0;
-
-          font-size: 17px;
-        }
-
-        .closeDetails {
-          border: 1px solid
-            rgba(255,255,255,.10);
-
-          background:
-            rgba(255,255,255,.05);
-
-          color: inherit;
-
-          padding:
-            7px 10px;
-
-          border-radius: 9px;
-
-          cursor: pointer;
-
-          font-size: 10px;
-        }
-
-        .clubEventRow {
-          display: grid;
-
-          grid-template-columns:
-            minmax(0,1fr)
-            80px
-            70px;
-
-          gap: 10px;
-
-          align-items: center;
-
-          padding:
-            12px 7px;
-
-          border-bottom: 1px solid
-            rgba(255,255,255,.06);
-        }
-
-        .clubEventRow:last-child {
-          border-bottom: 0;
-        }
-
-        .clubEventName {
-          font-weight: 850;
-          font-size: 12px;
-        }
-
-        .clubEventMeta {
-          margin-top: 3px;
-
-          font-size: 8px;
-
-          opacity: .42;
-        }
-
-        .clubEventRank {
-          text-align: center;
-
-          font-size: 10px;
-          font-weight: 800;
-        }
-
-        .clubEventPoints {
-          text-align: right;
-
-          font-size: 15px;
-          font-weight: 950;
-        }
-
-        /* ====================================================
-           COMPLETED MATCHES
-        ==================================================== */
-
-        .completedHeader {
-          display: flex;
-          align-items: center;
-
-          gap: 9px;
-        }
-
-        .completedIcon {
-          width: 32px;
-          height: 32px;
-
-          display: flex;
-          align-items: center;
-          justify-content: center;
-
-          border-radius: 10px;
-
-          background:
-            rgba(70,255,150,.09);
-
-          font-size: 15px;
-        }
-
-        .completedSportGroup {
-          margin-bottom: 9px;
-
-          border-radius: 15px;
-
-          border: 1px solid
-            rgba(255,255,255,.065);
-
-          overflow: hidden;
-
-          background:
-            rgba(255,255,255,.022);
-        }
-
-        .completedSportGroup summary {
-          list-style: none;
-
-          cursor: pointer;
-
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-
-          padding:
-            14px 15px;
-
-          transition:
-            background .2s ease;
-        }
-
-        .completedSportGroup summary:hover {
-          background:
-            rgba(255,255,255,.045);
-        }
-
-        .completedSportGroup
-          summary::-webkit-details-marker {
-          display: none;
-        }
-
-        .completedSportGroup
-          summary::after {
-          content: "+";
-
-          font-size: 18px;
-          opacity: .55;
-        }
-
-        .completedSportGroup[open]
-          summary::after {
-          content: "−";
-        }
-
-        .completedSportTitle {
-          display: flex;
-          flex-direction: column;
-
-          gap: 4px;
-        }
-
-        .completedSportName {
-          font-size: 12px;
-          font-weight: 900;
-        }
-
-        .completedSportMeta {
-          font-size: 8px;
-          opacity: .4;
-        }
-
-        .completedSportMatches {
-          padding:
-            0 10px 10px;
-        }
-
-        /* ====================================================
-           TEAM STANDINGS
-        ==================================================== */
-
-        .leaderboardShell {
-          position: relative;
-
-          overflow: hidden;
-
-          padding: 25px;
-
-          border-radius: 25px;
-
-          background:
-            radial-gradient(
-              circle at 10% 0%,
-              rgba(125,77,255,.20),
-              transparent 34%
-            ),
-            radial-gradient(
-              circle at 100% 100%,
-              rgba(0,180,255,.10),
-              transparent 34%
-            ),
-            rgba(17,18,34,.82);
-
-          border: 1px solid
-            rgba(255,255,255,.10);
-
-          box-shadow:
-            0 25px 70px
-              rgba(0,0,0,.24);
-        }
-
-        .leaderboardHeading {
-          display: flex;
-
-          align-items: flex-end;
           justify-content: space-between;
 
           gap: 15px;
@@ -2760,387 +2552,950 @@ export default function Home() {
           margin-bottom: 18px;
         }
 
-        .leaderboardTitle {
+        .championshipTitle {
+          display: flex;
+
+          gap: 11px;
+        }
+
+        .trophyBox {
+          width: 40px;
+          height: 40px;
+
+          display: grid;
+
+          place-items: center;
+
+          flex-shrink: 0;
+
+          border-radius: 12px;
+
+          background:
+            rgba(255,216,77,.08);
+
+          border:
+            1px solid
+            rgba(255,216,77,.13);
+
+          font-size: 19px;
+        }
+
+        .championship h2 {
           margin: 0;
 
-          font-size: 25px;
+          font-size:
+            clamp(20px,4vw,29px);
+
+          letter-spacing:
+            -.7px;
         }
 
-        .leaderboardSubtitle {
-          margin: 6px 0 0;
+        .championshipSubtitle {
+          margin:
+            4px 0 0;
 
-          font-size: 10px;
-          opacity: .42;
+          color:
+            rgba(255,255,255,.38);
+
+          font-size: 9px;
+
+          line-height: 1.5;
         }
 
-        .sportBadge {
+        .leaderBadge {
           padding:
-            8px 11px;
+            6px 9px;
 
           border-radius: 999px;
 
           background:
-            rgba(255,255,255,.055);
+            rgba(255,216,77,.08);
 
-          border: 1px solid
-            rgba(255,255,255,.09);
+          color:
+            #ffd84d;
 
-          font-size: 8px;
+          font-size: 7px;
+
           font-weight: 900;
+
+          letter-spacing: .8px;
 
           white-space: nowrap;
         }
 
-        .leaderboardSelect {
-          width: 100%;
+        .championLeader {
+          position: relative;
+
+          display: grid;
+
+          grid-template-columns:
+            42px
+            minmax(0,1fr)
+            auto;
+
+          align-items: center;
+
+          gap: 11px;
+
+          padding:
+            13px;
+
+          margin-bottom: 8px;
+
+          border-radius: 15px;
+
+          background:
+            linear-gradient(
+              90deg,
+              rgba(255,216,77,.10),
+              rgba(255,255,255,.025)
+            );
+
+          border:
+            1px solid
+            rgba(255,216,77,.14);
+        }
+
+        .championMedal {
+          width: 42px;
+          height: 42px;
+
+          display: grid;
+
+          place-items: center;
+
+          border-radius: 12px;
+
+          background:
+            rgba(255,216,77,.08);
+
+          font-size: 21px;
+        }
+
+        .clubName {
+          font-size: 14px;
+
+          font-weight: 950;
+        }
+
+        .clubProgress {
+          height: 4px;
 
           margin-top: 8px;
 
-          padding:
-            13px 14px;
+          overflow: hidden;
 
-          border-radius: 13px;
-
-          border: 1px solid
-            rgba(255,255,255,.10);
+          border-radius: 99px;
 
           background:
-            rgba(255,255,255,.055);
+            rgba(255,255,255,.07);
+        }
 
-          color: #fff;
+        .clubProgress span {
+          display: block;
+
+          height: 100%;
+
+          border-radius: inherit;
+
+          background:
+            linear-gradient(
+              90deg,
+              #ffd84d,
+              #fff2a3
+            );
+        }
+
+        .clubPoints {
+          text-align: right;
+        }
+
+        .clubPoints strong {
+          display: block;
+
+          font-size: 23px;
+
+          line-height: 1;
+
+          font-weight: 950;
+        }
+
+        .clubPoints small {
+          display: block;
+
+          margin-top: 4px;
+
+          color:
+            rgba(255,255,255,.3);
+
+          font-size: 7px;
+
+          letter-spacing: 1px;
+        }
+
+        .overallRows {
+          display: flex;
+
+          flex-direction: column;
+
+          gap: 5px;
+        }
+
+        .overallRowNew {
+          display: grid;
+
+          grid-template-columns:
+            31px
+            31px
+            minmax(0,1fr)
+            auto;
+
+          align-items: center;
+
+          gap: 8px;
+
+          min-height: 49px;
+
+          padding:
+            5px 10px;
+
+          border-radius: 12px;
+
+          background:
+            rgba(255,255,255,.025);
+
+          border:
+            1px solid
+            transparent;
+
+          transition:
+            .2s ease;
+        }
+
+        .overallRowNew:hover {
+          background:
+            rgba(255,255,255,.05);
+
+          border-color:
+            rgba(255,255,255,.07);
+        }
+
+        .overallRank {
+          color:
+            rgba(255,255,255,.38);
+
+          text-align: center;
+
+          font-size: 10px;
+
+          font-weight: 900;
+        }
+
+        .clubLogoMini {
+          width: 28px;
+          height: 28px;
+
+          display: grid;
+
+          place-items: center;
+
+          border-radius: 8px;
+
+          font-size: 7px;
+
+          font-weight: 950;
+
+          letter-spacing: .3px;
+        }
+
+        .overallClubName {
+          font-size: 11px;
+
+          font-weight: 850;
+        }
+
+        .overallPointsNew {
+          font-size: 14px;
+
+          font-weight: 950;
+        }
+
+        .viewBreakdown {
+          margin-top: 13px;
+
+          text-align: center;
+        }
+
+        .viewBreakdown span {
+          color:
+            rgba(255,255,255,.3);
+
+          font-size: 8px;
+
+          letter-spacing: .5px;
+        }
+
+        /* ====================================================
+           CLUB DETAILS
+        ==================================================== */
+
+        .clubDetails {
+          margin-top: 14px;
+
+          padding: 16px;
+
+          border-radius: 16px;
+
+          background:
+            rgba(0,0,0,.20);
+
+          border:
+            1px solid
+            rgba(255,255,255,.08);
+        }
+
+        .clubDetailsHeader {
+          display: flex;
+
+          justify-content: space-between;
+
+          align-items: center;
+
+          gap: 10px;
+
+          margin-bottom: 9px;
+        }
+
+        .clubDetailsHeader h3 {
+          margin: 0;
+
+          font-size: 14px;
+        }
+
+        .closeDetails {
+          border:
+            1px solid
+            rgba(255,255,255,.08);
+
+          background:
+            rgba(255,255,255,.045);
+
+          color:
+            rgba(255,255,255,.65);
+
+          padding:
+            6px 9px;
+
+          border-radius: 7px;
+
+          cursor: pointer;
+
+          font-size: 8px;
+        }
+
+        .clubEventRow {
+          display: grid;
+
+          grid-template-columns:
+            minmax(0,1fr)
+            58px
+            58px;
+
+          gap: 7px;
+
+          align-items: center;
+
+          padding:
+            10px 4px;
+
+          border-bottom:
+            1px solid
+            rgba(255,255,255,.055);
+        }
+
+        .clubEventRow:last-child {
+          border-bottom: none;
+        }
+
+        .clubEventName {
+          font-size: 10px;
+
+          font-weight: 850;
+        }
+
+        .clubEventMeta {
+          margin-top: 2px;
+
+          color:
+            rgba(255,255,255,.32);
+
+          font-size: 7px;
+        }
+
+        .clubEventRank {
+          text-align: center;
+
+          font-size: 8px;
+
+          font-weight: 800;
+        }
+
+        .clubEventPoints {
+          text-align: right;
+
+          font-size: 12px;
+
+          font-weight: 950;
+        }
+
+        /* ====================================================
+           TEAM STANDINGS
+        ==================================================== */
+
+        .standingsSection {
+          position: relative;
+
+          overflow: hidden;
+
+          padding: 23px;
+
+          border-radius: 23px;
+
+          background:
+            radial-gradient(
+              circle at 100% 0%,
+              rgba(83,52,190,.16),
+              transparent 32%
+            ),
+            rgba(14,15,24,.88);
+
+          border:
+            1px solid
+            rgba(255,255,255,.085);
+        }
+
+        .standingsTop {
+          display: flex;
+
+          justify-content: space-between;
+
+          align-items: flex-start;
+
+          gap: 15px;
+        }
+
+        .standingsTop h2 {
+          margin: 0;
+
+          font-size:
+            clamp(20px,4vw,29px);
+
+          letter-spacing:
+            -.7px;
+        }
+
+        .standingsTop p {
+          margin:
+            5px 0 0;
+
+          max-width: 500px;
+
+          color:
+            rgba(255,255,255,.38);
+
+          font-size: 9px;
+
+          line-height: 1.5;
+        }
+
+        .sportSelect {
+          width: 100%;
+
+          max-width: 300px;
+
+          margin-top: 16px;
+
+          padding:
+            11px 12px;
+
+          border-radius: 10px;
 
           outline: none;
 
-          font-size: 12px;
-          font-weight: 700;
-        }
-
-        .leaderboardSelect option {
-          background: #11121b;
-          color: #fff;
-        }
-
-        .standingsFrame {
-          overflow: hidden;
-
-          border-radius: 18px;
-
-          border: 1px solid
-            rgba(255,255,255,.07);
+          border:
+            1px solid
+            rgba(255,255,255,.09);
 
           background:
-            rgba(0,0,0,.12);
+            #171821;
+
+          color: white;
+
+          font-size: 10px;
+
+          font-weight: 750;
+        }
+
+        .standingsDesktop {
+          margin-top: 14px;
+
+          overflow-x: auto;
+
+          border-radius: 14px;
+
+          border:
+            1px solid
+            rgba(255,255,255,.06);
         }
 
         .standingsTable {
           width: 100%;
 
-          border-collapse: collapse;
+          border-collapse:
+            collapse;
 
-          table-layout: fixed;
+          min-width: 620px;
         }
 
         .standingsTable th {
           padding:
-            12px 7px;
-
-          text-align: center;
-
-          font-size: 8px;
-          letter-spacing: 1px;
-
-          color:
-            rgba(255,255,255,.40);
+            10px 8px;
 
           background:
             rgba(255,255,255,.035);
 
-          border-bottom: 1px solid
-            rgba(255,255,255,.07);
+          color:
+            rgba(255,255,255,.35);
+
+          font-size: 7px;
+
+          letter-spacing:
+            1px;
+
+          text-align: center;
+
+          font-weight: 900;
+        }
+
+        .standingsTable th:nth-child(2) {
+          text-align: left;
         }
 
         .standingsTable td {
           padding:
-            15px 7px;
+            12px 8px;
+
+          border-top:
+            1px solid
+            rgba(255,255,255,.045);
 
           text-align: center;
 
-          font-size: 12px;
-
-          border-bottom: 1px solid
-            rgba(255,255,255,.055);
+          font-size: 10px;
         }
 
-        .standingsTable tbody tr:last-child td {
-          border-bottom: 0;
-        }
-
-        .standingsTable tbody tr {
-          transition:
-            background .2s ease;
-        }
-
-        .standingsTable tbody tr:hover {
-          background:
-            rgba(255,255,255,.045);
-        }
-
-        .standingsTable
-          td.clubCell {
+        .standingsTable td.clubCell {
           text-align: left;
 
-          font-size: 13px;
           font-weight: 900;
         }
 
-        .positionCell {
-          font-size: 15px !important;
+        .standingsTable tr:first-child {
+          background:
+            rgba(255,216,77,.055);
+        }
+
+        .standingsTable tr:first-child
+          td.clubCell {
+          color:
+            #ffd84d;
+        }
+
+        .tablePoints {
+          font-size: 13px !important;
+
           font-weight: 950;
-        }
-
-        .pointsCell {
-          font-size: 16px !important;
-          font-weight: 1000;
-        }
-
-        .leaderRow {
-          background:
-            linear-gradient(
-              90deg,
-              rgba(255,216,77,.08),
-              transparent
-            );
-        }
-
-        .secondRow {
-          background:
-            rgba(255,255,255,.022);
-        }
-
-        .thirdRow {
-          background:
-            rgba(255,255,255,.015);
         }
 
         .mobileStandings {
           display: none;
         }
 
-        .mobileStandingRow {
+        .mobileStanding {
           display: grid;
 
           grid-template-columns:
-            44px
+            31px
+            31px
             minmax(0,1fr)
-            62px;
+            48px;
 
           align-items: center;
 
-          gap: 10px;
+          gap: 7px;
 
-          min-height: 76px;
+          min-height: 59px;
 
           padding:
-            10px 12px;
+            7px 8px;
 
-          border-bottom: 1px solid
-            rgba(255,255,255,.055);
+          border-bottom:
+            1px solid
+            rgba(255,255,255,.05);
         }
 
-        .mobileStandingRow:last-child {
-          border-bottom: 0;
+        .mobileStanding:last-child {
+          border-bottom: none;
         }
 
-        .mobileStandingRow.first {
+        .mobileStanding:first-child {
           background:
-            linear-gradient(
-              90deg,
-              rgba(255,216,77,.09),
-              transparent
-            );
+            rgba(255,216,77,.045);
         }
 
-        .mobileStandingRank {
-          display: flex;
+        .mobileRank {
+          text-align: center;
 
-          align-items: center;
-          justify-content: center;
+          font-size: 12px;
 
-          width: 37px;
-          height: 37px;
+          font-weight: 900;
+        }
 
-          border-radius: 11px;
+        .mobileClubBadge {
+          width: 27px;
+          height: 27px;
 
-          background:
-            rgba(255,255,255,.055);
+          display: grid;
+
+          place-items: center;
+
+          border-radius: 8px;
+
+          font-size: 6px;
 
           font-weight: 950;
         }
 
-        .mobileStandingClubName {
-          font-size: 13px;
-          font-weight: 950;
+        .mobileClubName {
+          font-size: 10px;
+
+          font-weight: 900;
         }
 
-        .mobileStandingStats {
+        .mobileStats {
           display: flex;
 
           gap: 7px;
 
-          margin-top: 5px;
+          margin-top: 3px;
 
-          flex-wrap: wrap;
-
-          font-size: 8px;
-
-          opacity: .43;
-        }
-
-        .mobileStandingExtra {
-          margin-top: 4px;
-
-          font-size: 8px;
-
-          opacity: .48;
-        }
-
-        .mobileStandingPoints {
-          text-align: right;
-        }
-
-        .mobileStandingPoints strong {
-          display: block;
-
-          font-size: 22px;
-          line-height: 1;
-
-          font-weight: 1000;
-        }
-
-        .mobileStandingPoints small {
-          display: block;
-
-          margin-top: 5px;
+          color:
+            rgba(255,255,255,.32);
 
           font-size: 7px;
-          letter-spacing: 1px;
 
-          opacity: .35;
+          font-weight: 700;
+        }
+
+        .mobilePoints {
+          text-align: right;
+
+          font-size: 16px;
+
+          font-weight: 950;
+        }
+
+        .mobilePoints small {
+          display: block;
+
+          margin-top: 2px;
+
+          color:
+            rgba(255,255,255,.25);
+
+          font-size: 6px;
+
+          letter-spacing:
+            1px;
         }
 
         .tableLegend {
-          margin-top: 12px;
+          margin-top: 11px;
 
-          font-size: 8px;
-          line-height: 1.7;
+          color:
+            rgba(255,255,255,.27);
 
-          opacity: .38;
+          font-size: 7px;
+
+          line-height: 1.6;
+        }
+
+        .tableLegend b {
+          color:
+            rgba(255,255,255,.55);
         }
 
         /* ====================================================
-           POINTS
+           POINTS SYSTEM
         ==================================================== */
 
-        .rules {
+        .pointsSection {
+          padding:
+            20px;
+
+          border-radius: 20px;
+
+          background:
+            rgba(255,255,255,.035);
+
+          border:
+            1px solid
+            rgba(255,255,255,.07);
+        }
+
+        .pointsSection h2 {
+          margin: 0;
+
+          font-size: 18px;
+        }
+
+        .pointsGrid {
           display: grid;
 
           grid-template-columns:
-            repeat(3, 1fr);
+            repeat(3,1fr);
 
-          gap: 10px;
+          gap: 8px;
 
-          margin-top: 15px;
+          margin-top: 14px;
         }
 
-        .rules > div {
+        .pointRule {
           padding:
-            15px;
+            14px;
 
-          border-radius: 15px;
+          border-radius: 13px;
 
           background:
-            rgba(255,255,255,.04);
+            rgba(0,0,0,.17);
 
-          border: 1px solid
-            rgba(255,255,255,.06);
+          border:
+            1px solid
+            rgba(255,255,255,.045);
         }
 
-        .rules b {
+        .pointRule strong {
           display: block;
 
-          margin-bottom: 7px;
+          font-size: 9px;
 
-          font-size: 11px;
+          font-weight: 900;
+
+          color:
+            rgba(255,255,255,.55);
         }
 
-        .rules span {
-          font-size: 9px;
-          opacity: .55;
+        .pointRule span {
+          display: block;
+
+          margin-top: 8px;
+
+          font-size: 10px;
+
+          font-weight: 800;
+
+          line-height: 1.5;
         }
 
         /* ====================================================
-           RESPONSIVE
+           FOOTER
         ==================================================== */
 
-        @media (max-width: 760px) {
+        .footer {
+          padding:
+            35px 0 10px;
+
+          text-align: center;
+
+          color:
+            rgba(255,255,255,.2);
+
+          font-size: 8px;
+
+          letter-spacing: 1px;
+        }
+
+        .footer strong {
+          color:
+            rgba(255,255,255,.42);
+        }
+
+        /* ====================================================
+           MOBILE
+        ==================================================== */
+
+        @media (max-width: 700px) {
 
           header {
-            height: 60px;
+            height: 58px;
+
+            padding:
+              0 14px;
+          }
+
+          .logo {
+            font-size: 12px;
+
+            letter-spacing:
+              1.5px;
+          }
+
+          .adminLink {
+            font-size: 8px;
+
+            padding:
+              7px 9px;
           }
 
           .hero {
-            min-height: 355px;
-
             padding:
-              60px 0 50px;
+              48px 14px 38px;
           }
 
           .hero h1 {
             font-size:
-              clamp(52px, 17vw, 82px);
+              clamp(54px, 17vw, 78px);
 
             letter-spacing:
               -4px;
           }
 
-          .hero p {
+          .heroText {
             max-width: 330px;
+
             font-size: 11px;
           }
 
+          .heroStats {
+            margin-top: 20px;
+          }
+
+          .heroStat {
+            font-size: 8px;
+
+            padding:
+              8px 10px;
+          }
+
           .wrap {
-            padding-bottom: 45px;
+            padding:
+              0 12px 45px;
+          }
+
+          .section {
+            margin-top: 20px;
           }
 
           .matchCenter {
-            grid-template-columns: 1fr;
+            grid-template-columns:
+              1fr;
+
+            gap: 10px;
           }
 
-          .matchCenterCard {
-            min-height: auto;
+          .matchPanel {
+            padding: 14px;
+
+            border-radius: 17px;
           }
 
+          .matchPanel:nth-child(2) {
+            margin-top: 0;
+          }
+
+          .matchCard {
+            padding: 12px;
+
+            border-radius: 13px;
+          }
+
+          .completedBox,
           .championship,
-          .leaderboardShell {
-            padding: 18px;
-            border-radius: 21px;
+          .standingsSection {
+            padding: 15px;
+
+            border-radius: 18px;
           }
 
-          .championshipHeader,
-          .leaderboardHeading {
+          .championshipHeader {
+            margin-bottom: 13px;
+          }
+
+          .trophyBox {
+            width: 34px;
+            height: 34px;
+
+            border-radius: 9px;
+
+            font-size: 16px;
+          }
+
+          .championshipSubtitle {
+            font-size: 8px;
+          }
+
+          .leaderBadge {
+            display: none;
+          }
+
+          .championLeader {
+            grid-template-columns:
+              37px
+              minmax(0,1fr)
+              auto;
+
+            padding: 9px;
+          }
+
+          .championMedal {
+            width: 37px;
+            height: 37px;
+
+            font-size: 18px;
+          }
+
+          .clubPoints strong {
+            font-size: 19px;
+          }
+
+          .overallRowNew {
+            grid-template-columns:
+              25px
+              28px
+              minmax(0,1fr)
+              auto;
+
+            min-height: 45px;
+
+            padding:
+              4px 7px;
+          }
+
+          .clubLogoMini {
+            width: 25px;
+            height: 25px;
+          }
+
+          .standingsTop {
             display: block;
           }
 
-          .championshipHeader h2,
-          .leaderboardTitle {
-            font-size: 20px;
+          .standingsTop p {
+            max-width: 320px;
           }
 
-          .championshipTag,
-          .sportBadge {
-            display: inline-block;
-
-            margin-top: 12px;
+          .sportSelect {
+            max-width: none;
           }
 
           .standingsDesktop {
@@ -3149,91 +3504,40 @@ export default function Home() {
 
           .mobileStandings {
             display: block;
+
+            margin-top: 10px;
+
+            overflow: hidden;
+
+            border-radius: 13px;
+
+            border:
+              1px solid
+              rgba(255,255,255,.055);
           }
 
-          .rules {
-            grid-template-columns: 1fr;
+          .tableLegend {
+            font-size: 6px;
           }
 
-          .overallRow {
+          .pointsGrid {
             grid-template-columns:
-              42px
-              minmax(0,1fr)
-              65px;
+              1fr;
+          }
 
-            min-height: 65px;
-
+          .pointRule {
             padding:
-              7px 8px;
+              11px 12px;
           }
 
-          .overallPosition {
-            width: 37px;
-            height: 37px;
-
-            font-size: 14px;
-          }
-
-          .clubButton {
-            font-size: 13px;
-          }
-
-          .rankBar {
-            margin-top: 7px;
-          }
-
-          .overallPoints strong {
-            font-size: 21px;
-          }
-
-          .clubEventRow {
-            grid-template-columns:
-              minmax(0,1fr)
-              62px
-              58px;
-          }
-
-          .clubDetailsHeader h3 {
-            font-size: 14px;
-          }
-
-          .sectionHeader h2 {
-            font-size: 18px;
-          }
         }
 
-        @media (max-width: 400px) {
+        @media (min-width: 701px) {
 
-          .hero h1 {
-            font-size: 54px;
+          .mobileStandings {
+            display: none;
           }
 
-          .hero {
-            min-height: 325px;
-          }
-
-          .nextTeams {
-            gap: 6px;
-          }
-
-          .nextTeamName {
-            font-size: 10px;
-          }
-
-          .timeBox {
-            min-width: 43px;
-          }
-
-          .timeBox strong {
-            font-size: 15px;
-          }
-
-          .overallRow {
-            grid-template-columns:
-              38px
-              minmax(0,1fr)
-              58px;
-          }
         }
 
       `}</style>
@@ -3243,14 +3547,19 @@ export default function Home() {
       ====================================================== */}
 
       <header>
+
         <div className="logo">
           EUPHORIA{" "}
           <span>SPORTS</span>
         </div>
 
-        <a href="/admin">
+        <a
+          href="/admin"
+          className="adminLink"
+        >
           ADMIN
         </a>
+
       </header>
 
       {/* ======================================================
@@ -3259,34 +3568,42 @@ export default function Home() {
 
       <section className="hero">
 
-        <small>
-          INTER-CLUB SPORTS CHAMPIONSHIP
-        </small>
+        <div className="heroEyebrow">
+          <span className="heroEyebrowDot" />
+          EUPHORIA 2026
+          <span>
+            · INTER-CLUB CHAMPIONSHIP
+          </span>
+        </div>
 
         <h1>
           THE GAME
-          <br />
-          IS ON.
+          <span>
+            IS ON.
+          </span>
         </h1>
 
-        <p>
-          Live scores, results and
-          the race for the Euphoria
+        <p className="heroText">
+          Five clubs. One championship.
+          Follow live scores, results
+          and the race for the Euphoria
           Club Championship.
         </p>
 
         <div className="heroStats">
-          <div className="heroPill">
-            5 CLUBS
+
+          <div className="heroStat">
+            🏆 {leaderboard.length} CLUBS
           </div>
 
-          <div className="heroPill">
-            LIVE RESULTS
+          <div className="heroStat">
+            🔴 {liveMatches.length} LIVE
           </div>
 
-          <div className="heroPill">
-            ONE CHAMPION
+          <div className="heroStat">
+            📊 {completedMatches.length} RESULTS
           </div>
+
         </div>
 
       </section>
@@ -3297,227 +3614,154 @@ export default function Home() {
             MATCH CENTER
         ==================================================== */}
 
-        <div className="matchCenter">
+        <div className="section">
 
-          {/* LIVE */}
+          <div className="sectionHeading">
 
-          <div className="card matchCenterCard liveCard">
+            <div>
+              <div className="sectionLabel">
+                THE ACTION
+              </div>
 
-            <div className="liveBadge">
-              <span className="liveDot" />
-              LIVE MATCH CENTER
+              <h2>
+                Match Center
+              </h2>
             </div>
-
-            <h2>
-              The action is live.
-            </h2>
-
-            {loading ? (
-
-              <div className="emptyState">
-                <strong>
-                  Loading matches...
-                </strong>
-              </div>
-
-            ) : liveMatches.length === 0 ? (
-
-              <div className="emptyState">
-                <strong>
-                  NO MATCHES LIVE
-                </strong>
-
-                <span>
-                  The arena is quiet... for now.
-                </span>
-              </div>
-
-            ) : (
-
-              liveMatches.map(
-                (match) => (
-                  <MatchCard
-                    key={match.id}
-                    match={match}
-                  />
-                )
-              )
-
-            )}
 
           </div>
 
-          {/* NEXT UP */}
+          <div className="matchCenter">
 
-          <div className="card matchCenterCard nextUp">
+            {/* LIVE */}
 
-            <div>
-              <div className="nextUpLabel">
-                ⚡ NEXT UP
+            <div
+              className={`matchPanel ${
+                liveMatches.length
+                  ? "matchPanelLive"
+                  : ""
+              }`}
+            >
+
+              <div className="panelHeader">
+
+                <div className="panelTitle">
+
+                  <div className="panelIcon">
+                    🔴
+                  </div>
+
+                  <div>
+                    <strong>
+                      Live Now
+                    </strong>
+
+                    <span>
+                      Matches in progress
+                    </span>
+                  </div>
+
+                </div>
+
+                <div className="panelCount">
+                  {liveMatches.length}
+                </div>
+
               </div>
 
-              {nextMatch ? (
-
-                <>
-                  <div className="nextUpSport">
-                    {nextMatch.events?.name}
-                    {" · "}
-                    {nextMatch.events?.gender}
-                  </div>
-
-                  <div className="nextTeams">
-
-                    <div className="nextTeam">
-
-                      <div
-                        className="nextTeamIcon"
-                        style={{
-                          boxShadow:
-                            `0 0 28px ${
-                              getClubTheme(
-                                nextMatch.club_a?.name
-                              ).glow
-                            }`,
-                        }}
-                      >
-                        {
-                          getClubTheme(
-                            nextMatch.club_a?.name
-                          ).icon
-                        }
-                      </div>
-
-                      <div className="nextTeamName">
-                        {
-                          nextMatch.club_a?.name ||
-                          "TBD"
-                        }
-                      </div>
-
-                    </div>
-
-                    <div className="vs">
-                      VS
-                    </div>
-
-                    <div className="nextTeam">
-
-                      <div
-                        className="nextTeamIcon"
-                        style={{
-                          boxShadow:
-                            `0 0 28px ${
-                              getClubTheme(
-                                nextMatch.club_b?.name
-                              ).glow
-                            }`,
-                        }}
-                      >
-                        {
-                          getClubTheme(
-                            nextMatch.club_b?.name
-                          ).icon
-                        }
-                      </div>
-
-                      <div className="nextTeamName">
-                        {
-                          nextMatch.club_b?.name ||
-                          "TBD"
-                        }
-                      </div>
-
-                    </div>
-
-                  </div>
-
-                  {getCountdown(
-                    nextMatch
-                  ) ? (
-
-                    <div className="countdown">
-
-                      {[
-                        [
-                          getCountdown(
-                            nextMatch
-                          ).days,
-                          "DAYS",
-                        ],
-                        [
-                          getCountdown(
-                            nextMatch
-                          ).hours,
-                          "HRS",
-                        ],
-                        [
-                          getCountdown(
-                            nextMatch
-                          ).minutes,
-                          "MIN",
-                        ],
-                        [
-                          getCountdown(
-                            nextMatch
-                          ).seconds,
-                          "SEC",
-                        ],
-                      ].map(
-                        ([value, label]) => (
-
-                          <div
-                            className="timeBox"
-                            key={label}
-                          >
-                            <strong>
-                              {String(
-                                value
-                              ).padStart(
-                                2,
-                                "0"
-                              )}
-                            </strong>
-
-                            <span>
-                              {label}
-                            </span>
-                          </div>
-
-                        )
-                      )}
-
-                    </div>
-
-                  ) : (
-
-                    <div
-                      className="nextDate"
-                    >
-                      Starting soon
-                    </div>
-
-                  )}
-
-                  <div className="nextDate">
-                    {formatMatchTime(
-                      nextMatch.match_time
-                    )}
-                  </div>
-
-                </>
-
-              ) : (
-
+              {loading ? (
                 <div className="emptyState">
+                  Loading...
+                </div>
+              ) : liveMatches.length === 0 ? (
+                <div className="emptyState">
+
+                  <div className="emptyIcon">
+                    🏟️
+                  </div>
+
                   <strong>
-                    NO UPCOMING MATCHES
+                    No live matches
+                  </strong>
+
+                  <span>
+                    The arena is quiet for now.
+                  </span>
+
+                </div>
+              ) : (
+                liveMatches.map(
+                  (match) => (
+                    <MatchCard
+                      key={match.id}
+                      match={match}
+                    />
+                  )
+                )
+              )}
+
+            </div>
+
+            {/* UPCOMING */}
+
+            <div className="matchPanel">
+
+              <div className="panelHeader">
+
+                <div className="panelTitle">
+
+                  <div className="panelIcon">
+                    ⏱️
+                  </div>
+
+                  <div>
+                    <strong>
+                      Up Next
+                    </strong>
+
+                    <span>
+                      Upcoming fixtures
+                    </span>
+                  </div>
+
+                </div>
+
+                <div className="panelCount">
+                  {upcomingMatches.length}
+                </div>
+
+              </div>
+
+              {loading ? (
+                <div className="emptyState">
+                  Loading...
+                </div>
+              ) : upcomingMatches.length === 0 ? (
+                <div className="emptyState">
+
+                  <div className="emptyIcon">
+                    📅
+                  </div>
+
+                  <strong>
+                    No upcoming matches
                   </strong>
 
                   <span>
                     New fixtures will appear here.
                   </span>
-                </div>
 
+                </div>
+              ) : (
+                upcomingMatches
+                  .slice(0, 3)
+                  .map(
+                    (match) => (
+                      <MatchCard
+                        key={match.id}
+                        match={match}
+                      />
+                    )
+                  )
               )}
 
             </div>
@@ -3527,59 +3771,21 @@ export default function Home() {
         </div>
 
         {/* ====================================================
-            UPCOMING MATCHES
-        ==================================================== */}
-
-        {upcomingMatches.length > 1 && (
-
-          <div className="card section">
-
-            <div className="sectionHeader">
-
-              <div>
-                <span className="eyebrow">
-                  FIXTURES
-                </span>
-
-                <h2>
-                  Upcoming Matches
-                </h2>
-
-                <p>
-                  What's coming next.
-                </p>
-              </div>
-
-            </div>
-
-            {upcomingMatches
-              .slice(1)
-              .map((match) => (
-                <MatchCard
-                  key={match.id}
-                  match={match}
-                />
-              ))}
-
-          </div>
-
-        )}
-
-        {/* ====================================================
             COMPLETED
         ==================================================== */}
 
-        <div className="card section">
+        <div className="section">
 
-          <div className="sectionHeader">
+          <div className="completedBox">
 
-            <div className="completedHeader">
-
-              <div className="completedIcon">
-                ✓
-              </div>
+            <div className="sectionHeading">
 
               <div>
+
+                <div className="sectionLabel">
+                  THE RESULTS
+                </div>
+
                 <h2>
                   Completed Matches
                 </h2>
@@ -3587,51 +3793,57 @@ export default function Home() {
                 <p>
                   Results from the championship.
                 </p>
+
+              </div>
+
+              <div className="panelCount">
+                {completedMatches.length}
               </div>
 
             </div>
 
-          </div>
+            {loading ? (
+              <div className="emptyState">
+                Loading results...
+              </div>
+            ) : completedSportGroups.length === 0 ? (
+              <div className="emptyState">
 
-          {loading ? (
+                <div className="emptyIcon">
+                  📋
+                </div>
 
-            <p className="muted">
-              Loading results...
-            </p>
+                <strong>
+                  No results yet
+                </strong>
 
-          ) : completedSportGroups.length === 0 ? (
+                <span>
+                  Completed matches will appear here.
+                </span>
 
-            <div className="emptyState">
-              <strong>
-                NO COMPLETED MATCHES
-              </strong>
+              </div>
+            ) : (
 
-              <span>
-                Results will appear here once matches finish.
-              </span>
-            </div>
-
-          ) : (
-
-            <div style={{ marginTop: "15px" }}>
-
-              {completedSportGroups.map(
-                (group) => (
+              completedSportGroups.map(
+                (group, index) => (
 
                   <details
-                    className="completedSportGroup"
-                    key={`${group.sport}-${group.gender}`}
+                    className="completedGroup"
+                    key={
+                      `${group.sport}-${group.gender}`
+                    }
+                    open={index === 0}
                   >
 
                     <summary>
 
-                      <div className="completedSportTitle">
+                      <div className="completedTitle">
 
-                        <div className="completedSportName">
+                        <strong>
                           {group.sport}
-                        </div>
+                        </strong>
 
-                        <div className="completedSportMeta">
+                        <span>
                           {group.gender}
                           {" · "}
                           {group.matches.length}
@@ -3639,19 +3851,20 @@ export default function Home() {
                           {group.matches.length === 1
                             ? "match"
                             : "matches"}
-                        </div>
+                        </span>
 
                       </div>
 
                     </summary>
 
-                    <div className="completedSportMatches">
+                    <div className="completedMatches">
 
                       {group.matches.map(
                         (match) => (
                           <MatchCard
                             key={match.id}
                             match={match}
+                            compact
                           />
                         )
                       )}
@@ -3661,840 +3874,616 @@ export default function Home() {
                   </details>
 
                 )
-              )}
+              )
 
-            </div>
-
-          )}
-
-        </div>
-
-        {/* ====================================================
-            CHAMPIONSHIP RACE
-        ==================================================== */}
-
-        <div className="championship section">
-
-          <div className="championshipHeader">
-
-            <div>
-
-              <span className="eyebrow">
-                EUPHORIA 2026
-              </span>
-
-              <h2>
-                🏆 Championship Race
-              </h2>
-
-              <p>
-                Every event matters. Every point
-                changes the race.
-              </p>
-
-            </div>
-
-            <div className="championshipTag">
-              LIVE TABLE
-            </div>
+            )}
 
           </div>
 
-          {leaderboard.map(
-            (club, index) => {
-
-              const theme =
-                getClubTheme(club);
-
-              const leaderPoints =
-                Math.max(
-                  points[
-                    leaderboard[0]
-                  ] || 0,
-                  1
-                );
-
-              const percentage =
-                Math.max(
-                  4,
-                  ((points[club] || 0) /
-                    leaderPoints) *
-                    100
-                );
-
-              return (
-                <div
-                  className={`overallRow ${
-                    index === 0
-                      ? "first"
-                      : index === 1
-                      ? "second"
-                      : index === 2
-                      ? "third"
-                      : ""
-                  }`}
-                  key={club}
-                >
-
-                  <div className="overallPosition">
-                    {getMedal(index)}
-                  </div>
-
-                  <div className="overallClub">
-
-                    <button
-                      className="clubButton"
-                      onClick={() =>
-                        setSelectedClub(
-                          selectedClub === club
-                            ? null
-                            : club
-                        )
-                      }
-                    >
-
-                      <span
-                        className="clubColor"
-                        style={{
-                          background:
-                            theme.color,
-
-                          boxShadow:
-                            `0 0 10px ${theme.glow}`,
-                        }}
-                      />
-
-                      {club}
-
-                    </button>
-
-                    <div className="rankBar">
-
-                      <div
-                        className="rankBarInner"
-                        style={{
-                          width:
-                            `${percentage}%`,
-                          background:
-                            theme.color,
-                          boxShadow:
-                            `0 0 12px ${theme.glow}`,
-                        }}
-                      />
-
-                    </div>
-
-                  </div>
-
-                  <div className="overallPoints">
-
-                    <strong>
-                      {points[club] || 0}
-                    </strong>
-
-                    <span>
-                      POINTS
-                    </span>
-
-                  </div>
-
-                </div>
-              );
-            }
-          )}
-
-          {/* ==================================================
-              CLUB DETAILS
-          ================================================== */}
-
-          {selectedClub && (
-
-            <div className="clubDetails">
-
-              <div className="clubDetailsHeader">
-
-                <h3>
-                  {getClubTheme(
-                    selectedClub
-                  ).icon}{" "}
-                  {selectedClub}
-                  {" · "}
-                  Event Breakdown
-                </h3>
-
-                <button
-                  className="closeDetails"
-                  onClick={() =>
-                    setSelectedClub(null)
-                  }
-                >
-                  CLOSE
-                </button>
-
-              </div>
-
-              {selectedClubDetails.length === 0 ? (
-
-                <p className="muted">
-                  No event points have been
-                  awarded to this club yet.
-                </p>
-
-              ) : (
-
-                <div>
-
-                  <div
-                    className="clubEventRow"
-                    style={{
-                      opacity: .42,
-                      fontSize: "8px",
-                      fontWeight: 900,
-                    }}
-                  >
-
-                    <div>
-                      EVENT
-                    </div>
-
-                    <div className="clubEventRank">
-                      RANK
-                    </div>
-
-                    <div className="clubEventPoints">
-                      PTS
-                    </div>
-
-                  </div>
-
-                  {selectedClubDetails.map(
-                    (result) => (
-
-                      <div
-                        className="clubEventRow"
-                        key={result.id}
-                      >
-
-                        <div>
-
-                          <div className="clubEventName">
-                            {result.events?.name ||
-                              "Event"}
-                          </div>
-
-                          <div className="clubEventMeta">
-                            {result.events?.gender ||
-                              ""}
-                          </div>
-
-                        </div>
-
-                        <div className="clubEventRank">
-                          {result.position === 1
-                            ? "🥇 1st"
-                            : result.position === 2
-                            ? "🥈 2nd"
-                            : result.position === 3
-                            ? "🥉 3rd"
-                            : `${result.position}th`}
-                        </div>
-
-                        <div className="clubEventPoints">
-                          {Number(
-                            result.points || 0
-                          )}
-                        </div>
-
-                      </div>
-
-                    )
-                  )}
-
-                  <div
-                    style={{
-                      marginTop: "12px",
-                      textAlign: "right",
-                      fontWeight: 950,
-                      fontSize: "12px",
-                    }}
-                  >
-                    Total:{" "}
-                    {selectedClubDetails.reduce(
-                      (sum, result) =>
-                        sum +
-                        Number(
-                          result.points || 0
-                        ),
-                      0
-                    )}{" "}
-                    points
-                  </div>
-
-                </div>
-
-              )}
-
-            </div>
-
-          )}
-
         </div>
 
         {/* ====================================================
-            TEAM SPORT STANDINGS
+            CHAMPIONSHIP
         ==================================================== */}
 
         <div className="section">
 
-          <div className="leaderboardShell">
+          <div className="championship">
 
-            <div className="leaderboardHeading">
+            <div className="championshipHeader">
 
-              <div>
+              <div className="championshipTitle">
 
-                <span className="eyebrow">
-                  SPORT BY SPORT
-                </span>
+                <div className="trophyBox">
+                  🏆
+                </div>
 
-                <h2 className="leaderboardTitle">
-                  Team Sport Standings
-                </h2>
+                <div>
 
-                <p className="leaderboardSubtitle">
-                  Automatically calculated from
-                  completed matches.
-                </p>
+                  <h2>
+                    Club Championship
+                  </h2>
+
+                  <p className="championshipSubtitle">
+                    Every medal counts.
+                    Every point moves the table.
+                  </p>
+
+                </div>
 
               </div>
 
-              {selectedEvent && (
-                <div className="sportBadge">
-                  {selectedEvent.gender}
-                  {" · "}
-                  {selectedEvent.name}
+              <div className="leaderBadge">
+                CURRENT LEADER
+              </div>
+
+            </div>
+
+            {leaderboard.length > 0 && (
+
+              <div className="championLeader">
+
+                <div className="championMedal">
+                  🥇
                 </div>
-              )}
+
+                <div>
+
+                  <div className="clubName">
+                    {leaderboard[0]}
+                  </div>
+
+                  <div className="clubProgress">
+
+                    <span
+                      style={{
+                        width:
+                          leaderPoints > 0
+                            ? "100%"
+                            : "0%",
+                      }}
+                    />
+
+                  </div>
+
+                </div>
+
+                <div className="clubPoints">
+
+                  <strong>
+                    {leaderPoints}
+                  </strong>
+
+                  <small>
+                    POINTS
+                  </small>
+
+                </div>
+
+              </div>
+
+            )}
+
+            <div className="overallRows">
+
+              {leaderboard
+                .slice(1)
+                .map(
+                  (
+                    club,
+                    index
+                  ) => {
+
+                    const actualIndex =
+                      index + 1;
+
+                    const theme =
+                      getClubTheme(
+                        club
+                      );
+
+                    const clubPointsValue =
+                      Number(
+                        points[club] || 0
+                      );
+
+                    const percentage =
+                      leaderPoints > 0
+                        ? Math.min(
+                            100,
+                            (clubPointsValue /
+                              leaderPoints) *
+                              100
+                          )
+                        : 0;
+
+                    return (
+                      <div
+                        className="overallRowNew"
+                        key={club}
+                      >
+
+                        <div className="overallRank">
+                          {getMedal(
+                            actualIndex
+                          )}
+                        </div>
+
+                        <div
+                          className="clubLogoMini"
+                          style={{
+                            background:
+                              `${theme.color}18`,
+                            color:
+                              theme.color,
+                            border:
+                              `1px solid ${theme.color}35`,
+                          }}
+                        >
+                          {theme.short}
+                        </div>
+
+                        <button
+                          onClick={() =>
+                            setSelectedClub(
+                              selectedClub ===
+                                club
+                                ? null
+                                : club
+                            )
+                          }
+                          style={{
+                            border: "none",
+                            background:
+                              "transparent",
+                            color:
+                              "inherit",
+                            padding: 0,
+                            textAlign:
+                              "left",
+                            cursor:
+                              "pointer",
+                          }}
+                        >
+
+                          <div className="overallClubName">
+                            {club}
+                          </div>
+
+                        </button>
+
+                        <div className="overallPointsNew">
+                          {clubPointsValue}
+                        </div>
+
+                      </div>
+                    );
+                  }
+                )}
+
+            </div>
+
+            <div className="viewBreakdown">
+              <span>
+                Tap a club to view its event breakdown
+              </span>
+            </div>
+
+            {/* CLUB DETAILS */}
+
+            {selectedClub && (
+
+              <div className="clubDetails">
+
+                <div className="clubDetailsHeader">
+
+                  <h3>
+                    {selectedClub}
+                    {" · "}
+                    Event Breakdown
+                  </h3>
+
+                  <button
+                    className="closeDetails"
+                    onClick={() =>
+                      setSelectedClub(
+                        null
+                      )
+                    }
+                  >
+                    CLOSE
+                  </button>
+
+                </div>
+
+                {selectedClubDetails.length ===
+                0 ? (
+
+                  <div className="emptyState">
+
+                    <strong>
+                      No event points yet
+                    </strong>
+
+                  </div>
+
+                ) : (
+
+                  <>
+
+                    <div
+                      className="clubEventRow"
+                      style={{
+                        color:
+                          "rgba(255,255,255,.25)",
+                        fontSize:
+                          "7px",
+                        fontWeight:
+                          900,
+                      }}
+                    >
+
+                      <div>
+                        EVENT
+                      </div>
+
+                      <div
+                        style={{
+                          textAlign:
+                            "center",
+                        }}
+                      >
+                        RANK
+                      </div>
+
+                      <div
+                        style={{
+                          textAlign:
+                            "right",
+                        }}
+                      >
+                        PTS
+                      </div>
+
+                    </div>
+
+                    {selectedClubDetails.map(
+                      (result) => (
+
+                        <div
+                          className="clubEventRow"
+                          key={result.id}
+                        >
+
+                          <div>
+
+                            <div className="clubEventName">
+                              {result.events?.name ||
+                                "Event"}
+                            </div>
+
+                            <div className="clubEventMeta">
+                              {result.events?.gender ||
+                                ""}
+                            </div>
+
+                          </div>
+
+                          <div className="clubEventRank">
+
+                            {result.position ===
+                            1
+                              ? "🥇 1st"
+                              : result.position ===
+                                2
+                              ? "🥈 2nd"
+                              : result.position ===
+                                3
+                              ? "🥉 3rd"
+                              : `${result.position}th`}
+
+                          </div>
+
+                          <div className="clubEventPoints">
+
+                            {Number(
+                              result.points ||
+                                0
+                            )}
+
+                          </div>
+
+                        </div>
+
+                      )
+                    )}
+
+                  </>
+
+                )}
+
+              </div>
+
+            )}
+
+          </div>
+
+        </div>
+
+        {/* ====================================================
+            TEAM STANDINGS
+        ==================================================== */}
+
+        <div className="section">
+
+          <div className="standingsSection">
+
+            <div className="standingsTop">
+
+              <div>
+
+                <div className="sectionLabel">
+                  HEAD TO HEAD
+                </div>
+
+                <h2>
+                  Team Standings
+                </h2>
+
+                <p>
+                  Competition points calculated
+                  automatically from completed matches.
+                </p>
+
+              </div>
 
             </div>
 
             {teamSports.length === 0 ? (
 
-              <p className="muted">
-                No team sports have been added yet.
-              </p>
+              <div className="emptyState">
+                <strong>
+                  No team sports yet
+                </strong>
+              </div>
 
             ) : (
 
               <>
 
-                <label>
+                <select
+                  className="sportSelect"
+                  value={
+                    selectedTeamSport
+                  }
+                  onChange={(event) =>
+                    setSelectedTeamSport(
+                      event.target.value
+                    )
+                  }
+                >
 
-                  <b
-                    style={{
-                      fontSize: "10px",
-                      opacity: .55,
-                    }}
-                  >
-                    SELECT SPORT
-                  </b>
+                  {teamSports.map(
+                    (event) => (
 
-                  <select
-                    className="leaderboardSelect"
-                    value={
-                      selectedTeamSport
-                    }
-                    onChange={(event) =>
-                      setSelectedTeamSport(
-                        event.target.value
-                      )
-                    }
-                  >
+                      <option
+                        key={event.id}
+                        value={event.id}
+                      >
+                        {event.gender}
+                        {" · "}
+                        {event.name}
+                      </option>
 
-                    {teamSports.map(
-                      (event) => (
+                    )
+                  )}
 
-                        <option
-                          key={event.id}
-                          value={event.id}
-                        >
-                          {event.gender}
-                          {" · "}
-                          {event.name}
-                        </option>
-
-                      )
-                    )}
-
-                  </select>
-
-                </label>
+                </select>
 
                 {selectedEvent && (
 
                   <>
 
-                    {sportLeaderboard.completedCount ===
-                    0 ? (
+                    <div
+                      className="standingsDesktop"
+                    >
 
-                      <div
-                        style={{
-                          padding:
-                            "30px 5px",
-                        }}
-                      >
+                      {sportLeaderboard.completedCount ===
+                      0 ? (
 
                         <div className="emptyState">
 
                           <strong>
-                            NO MATCHES PLAYED
+                            No matches played yet
                           </strong>
 
                           <span>
-                            Standings will update automatically
-                            when the first result is recorded.
+                            Standings will update
+                            automatically.
                           </span>
 
                         </div>
 
-                      </div>
+                      ) : (
 
-                    ) : (
+                        <table className="standingsTable">
 
-                      <>
+                          <thead>
 
-                        {/* DESKTOP */}
+                            <tr>
 
-                        <div
-                          className="standingsFrame standingsDesktop"
-                          style={{
-                            marginTop:
-                              "18px",
-                          }}
-                        >
+                              <th>
+                                POS
+                              </th>
 
-                          <table className="standingsTable">
+                              <th>
+                                CLUB
+                              </th>
 
-                            <thead>
+                              <th>
+                                P
+                              </th>
 
-                              <tr>
+                              <th>
+                                W
+                              </th>
 
+                              {(isFootball ||
+                                (!isCricket &&
+                                  !usesPD)) && (
                                 <th>
-                                  POS
+                                  D
                                 </th>
-
-                                <th
-                                  style={{
-                                    textAlign:
-                                      "left",
-                                  }}
-                                >
-                                  CLUB
-                                </th>
-
-                                <th>
-                                  P
-                                </th>
-
-                                <th>
-                                  W
-                                </th>
-
-                                {(isFootball ||
-                                  (!isCricket &&
-                                    !usesPD)) && (
-                                  <th>
-                                    D
-                                  </th>
-                                )}
-
-                                <th>
-                                  L
-                                </th>
-
-                                {isCricket && (
-                                  <th>
-                                    NR
-                                  </th>
-                                )}
-
-                                {isCricket && (
-                                  <th>
-                                    NRR
-                                  </th>
-                                )}
-
-                                {isFootball && (
-                                  <th>
-                                    GD
-                                  </th>
-                                )}
-
-                                {usesPD && (
-                                  <>
-                                    <th>
-                                      PF
-                                    </th>
-
-                                    <th>
-                                      PA
-                                    </th>
-
-                                    <th>
-                                      PD
-                                    </th>
-                                  </>
-                                )}
-
-                                <th>
-                                  PTS
-                                </th>
-
-                              </tr>
-
-                            </thead>
-
-                            <tbody>
-
-                              {sportLeaderboard.rows.map(
-                                (
-                                  row,
-                                  index
-                                ) => {
-
-                                  const theme =
-                                    getClubTheme(
-                                      row.name
-                                    );
-
-                                  return (
-                                    <tr
-                                      key={
-                                        row.id
-                                      }
-                                      className={
-                                        index === 0
-                                          ? "leaderRow"
-                                          : index === 1
-                                          ? "secondRow"
-                                          : index === 2
-                                          ? "thirdRow"
-                                          : ""
-                                      }
-                                    >
-
-                                      <td className="positionCell">
-                                        {getMedal(
-                                          index
-                                        )}
-                                      </td>
-
-                                      <td className="clubCell">
-
-                                        <span
-                                          style={{
-                                            display:
-                                              "inline-block",
-
-                                            width:
-                                              "6px",
-
-                                            height:
-                                              "6px",
-
-                                            borderRadius:
-                                              "50%",
-
-                                            background:
-                                              theme.color,
-
-                                            marginRight:
-                                              "7px",
-
-                                            boxShadow:
-                                              `0 0 8px ${theme.glow}`,
-                                          }}
-                                        />
-
-                                        {row.name}
-
-                                      </td>
-
-                                      <td>
-                                        {
-                                          row.played
-                                        }
-                                      </td>
-
-                                      <td>
-                                        {
-                                          row.wins
-                                        }
-                                      </td>
-
-                                      {(isFootball ||
-                                        (!isCricket &&
-                                          !usesPD)) && (
-                                        <td>
-                                          {
-                                            row.draws
-                                          }
-                                        </td>
-                                      )}
-
-                                      <td>
-                                        {
-                                          row.losses
-                                        }
-                                      </td>
-
-                                      {isCricket && (
-                                        <td>
-                                          {
-                                            row.noResults
-                                          }
-                                        </td>
-                                      )}
-
-                                      {isCricket && (
-                                        <td
-                                          style={{
-                                            fontWeight:
-                                              850,
-                                          }}
-                                        >
-                                          {formatNRR(
-                                            row.nrr
-                                          )}
-                                        </td>
-                                      )}
-
-                                      {isFootball && (
-                                        <td
-                                          style={{
-                                            fontWeight:
-                                              850,
-                                          }}
-                                        >
-                                          {row.pd >
-                                          0
-                                            ? "+"
-                                            : ""}
-                                          {
-                                            row.pd
-                                          }
-                                        </td>
-                                      )}
-
-                                      {usesPD && (
-                                        <>
-                                          <td>
-                                            {formatNumber(
-                                              row.pf
-                                            )}
-                                          </td>
-
-                                          <td>
-                                            {formatNumber(
-                                              row.pa
-                                            )}
-                                          </td>
-
-                                          <td
-                                            style={{
-                                              fontWeight:
-                                                850,
-                                            }}
-                                          >
-                                            {row.pd >
-                                            0
-                                              ? "+"
-                                              : ""}
-                                            {formatNumber(
-                                              row.pd
-                                            )}
-                                          </td>
-                                        </>
-                                      )}
-
-                                      <td className="pointsCell">
-                                        {
-                                          row.points
-                                        }
-                                      </td>
-
-                                    </tr>
-                                  );
-                                }
                               )}
 
-                            </tbody>
+                              <th>
+                                L
+                              </th>
 
-                          </table>
+                              {isCricket && (
+                                <th>
+                                  NR
+                                </th>
+                              )}
 
-                        </div>
+                              {isCricket && (
+                                <th>
+                                  NRR
+                                </th>
+                              )}
 
-                        {/* MOBILE */}
+                              {isFootball && (
+                                <th>
+                                  GD
+                                </th>
+                              )}
 
-                        <div
-                          className="standingsFrame mobileStandings"
-                          style={{
-                            marginTop:
-                              "18px",
-                          }}
-                        >
+                              {usesPD && (
+                                <>
+                                  <th>
+                                    PF
+                                  </th>
 
-                          {sportLeaderboard.rows.map(
-                            (
-                              row,
-                              index
-                            ) => {
+                                  <th>
+                                    PA
+                                  </th>
 
-                              const theme =
-                                getClubTheme(
-                                  row.name
-                                );
+                                  <th>
+                                    PD
+                                  </th>
+                                </>
+                              )}
 
-                              return (
-                                <div
+                              <th>
+                                PTS
+                              </th>
+
+                            </tr>
+
+                          </thead>
+
+                          <tbody>
+
+                            {sportLeaderboard.rows.map(
+                              (
+                                row,
+                                index
+                              ) => (
+
+                                <tr
                                   key={
                                     row.id
                                   }
-                                  className={`mobileStandingRow ${
-                                    index ===
-                                    0
-                                      ? "first"
-                                      : ""
-                                  }`}
                                 >
 
-                                  <div
-                                    className="mobileStandingRank"
+                                  <td
+                                    style={{
+                                      fontSize:
+                                        "13px",
+                                      fontWeight:
+                                        900,
+                                    }}
                                   >
                                     {getMedal(
                                       index
                                     )}
-                                  </div>
+                                  </td>
 
-                                  <div>
+                                  <td className="clubCell">
+                                    {row.name}
+                                  </td>
 
-                                    <div
-                                      style={{
-                                        display:
-                                          "flex",
-                                        alignItems:
-                                          "center",
-                                        gap:
-                                          "7px",
-                                      }}
-                                    >
+                                  <td>
+                                    {
+                                      row.played
+                                    }
+                                  </td>
 
-                                      <span
-                                        style={{
-                                          width:
-                                            "6px",
-                                          height:
-                                            "6px",
-                                          borderRadius:
-                                            "50%",
-                                          background:
-                                            theme.color,
-                                          boxShadow:
-                                            `0 0 8px ${theme.glow}`,
-                                        }}
-                                      />
+                                  <td>
+                                    {
+                                      row.wins
+                                    }
+                                  </td>
 
-                                      <div className="mobileStandingClubName">
-                                        {
-                                          row.name
-                                        }
-                                      </div>
+                                  {(isFootball ||
+                                    (!isCricket &&
+                                      !usesPD)) && (
+                                    <td>
+                                      {
+                                        row.draws
+                                      }
+                                    </td>
+                                  )}
 
-                                    </div>
+                                  <td>
+                                    {
+                                      row.losses
+                                    }
+                                  </td>
 
-                                    <div className="mobileStandingStats">
+                                  {isCricket && (
+                                    <td>
+                                      {
+                                        row.noResults
+                                      }
+                                    </td>
+                                  )}
 
-                                      <span>
-                                        P{" "}
-                                        {
-                                          row.played
-                                        }
-                                      </span>
-
-                                      <span>
-                                        W{" "}
-                                        {
-                                          row.wins
-                                        }
-                                      </span>
-
-                                      {(isFootball ||
-                                        (!isCricket &&
-                                          !usesPD)) && (
-                                        <span>
-                                          D{" "}
-                                          {
-                                            row.draws
-                                          }
-                                        </span>
+                                  {isCricket && (
+                                    <td>
+                                      {formatNRR(
+                                        row.nrr
                                       )}
+                                    </td>
+                                  )}
 
-                                      <span>
-                                        L{" "}
-                                        {
-                                          row.losses
-                                        }
-                                      </span>
+                                  {isFootball && (
+                                    <td>
+                                      {row.pd >
+                                      0
+                                        ? "+"
+                                        : ""}
+                                      {
+                                        row.pd
+                                      }
+                                    </td>
+                                  )}
 
-                                      {isCricket && (
-                                        <span>
-                                          NR{" "}
-                                          {
-                                            row.noResults
-                                          }
-                                        </span>
-                                      )}
-
-                                    </div>
-
-                                    {isCricket && (
-                                      <div className="mobileStandingExtra">
-                                        NRR{" "}
-                                        <b>
-                                          {formatNRR(
-                                            row.nrr
-                                          )}
-                                        </b>
-                                      </div>
-                                    )}
-
-                                    {isFootball && (
-                                      <div className="mobileStandingExtra">
-                                        GD{" "}
-                                        <b>
-                                          {row.pd >
-                                          0
-                                            ? "+"
-                                            : ""}
-                                          {
-                                            row.pd
-                                          }
-                                        </b>
-                                      </div>
-                                    )}
-
-                                    {usesPD && (
-                                      <div className="mobileStandingExtra">
-                                        PF{" "}
+                                  {usesPD && (
+                                    <>
+                                      <td>
                                         {formatNumber(
                                           row.pf
                                         )}
-                                        {" · "}
-                                        PA{" "}
+                                      </td>
+
+                                      <td>
                                         {formatNumber(
                                           row.pa
                                         )}
-                                        {" · "}
-                                        PD{" "}
+                                      </td>
+
+                                      <td>
                                         {row.pd >
                                         0
                                           ? "+"
@@ -4502,88 +4491,209 @@ export default function Home() {
                                         {formatNumber(
                                           row.pd
                                         )}
-                                      </div>
+                                      </td>
+                                    </>
+                                  )}
+
+                                  <td className="tablePoints">
+                                    {
+                                      row.points
+                                    }
+                                  </td>
+
+                                </tr>
+
+                              )
+                            )}
+
+                          </tbody>
+
+                        </table>
+
+                      )}
+
+                    </div>
+
+                    <div className="mobileStandings">
+
+                      {sportLeaderboard.completedCount ===
+                      0 ? (
+
+                        <div className="emptyState">
+
+                          <strong>
+                            No matches played yet
+                          </strong>
+
+                          <span>
+                            Standings will update automatically.
+                          </span>
+
+                        </div>
+
+                      ) : (
+
+                        sportLeaderboard.rows.map(
+                          (
+                            row,
+                            index
+                          ) => {
+
+                            const theme =
+                              getClubTheme(
+                                row.name
+                              );
+
+                            return (
+                              <div
+                                className="mobileStanding"
+                                key={
+                                  row.id
+                                }
+                              >
+
+                                <div className="mobileRank">
+                                  {getMedal(
+                                    index
+                                  )}
+                                </div>
+
+                                <div
+                                  className="mobileClubBadge"
+                                  style={{
+                                    background:
+                                      `${theme.color}18`,
+                                    color:
+                                      theme.color,
+                                  }}
+                                >
+                                  {theme.short}
+                                </div>
+
+                                <div>
+
+                                  <div className="mobileClubName">
+                                    {
+                                      row.name
+                                    }
+                                  </div>
+
+                                  <div className="mobileStats">
+
+                                    <span>
+                                      P
+                                      {" "}
+                                      {
+                                        row.played
+                                      }
+                                    </span>
+
+                                    <span>
+                                      W
+                                      {" "}
+                                      {
+                                        row.wins
+                                      }
+                                    </span>
+
+                                    {(isFootball ||
+                                      (!isCricket &&
+                                        !usesPD)) && (
+                                      <span>
+                                        D
+                                        {" "}
+                                        {
+                                          row.draws
+                                        }
+                                      </span>
+                                    )}
+
+                                    <span>
+                                      L
+                                      {" "}
+                                      {
+                                        row.losses
+                                      }
+                                    </span>
+
+                                    {isCricket && (
+                                      <span>
+                                        NR
+                                        {" "}
+                                        {
+                                          row.noResults
+                                        }
+                                      </span>
                                     )}
 
                                   </div>
 
-                                  <div className="mobileStandingPoints">
+                                </div>
 
-                                    <strong>
-                                      {
-                                        row.points
-                                      }
-                                    </strong>
+                                <div className="mobilePoints">
 
-                                    <small>
-                                      PTS
-                                    </small>
+                                  {
+                                    row.points
+                                  }
 
-                                  </div>
+                                  <small>
+                                    PTS
+                                  </small>
 
                                 </div>
-                              );
-                            }
-                          )}
 
-                        </div>
+                              </div>
+                            );
+                          }
+                        )
 
-                        <div className="tableLegend">
+                      )}
 
-                          <b>P</b>{" "}
-                          Played ·{" "}
+                    </div>
 
-                          <b>W</b>{" "}
-                          Won ·{" "}
+                    {sportLeaderboard.completedCount >
+                      0 && (
 
-                          {(isFootball ||
-                            (!isCricket &&
-                              !usesPD)) && (
-                            <>
-                              <b>D</b>{" "}
-                              Draw ·{" "}
-                            </>
-                          )}
+                      <div className="tableLegend">
 
-                          <b>L</b>{" "}
-                          Lost ·{" "}
+                        <b>P</b> Played ·{" "}
 
-                          {isCricket && (
-                            <>
-                              <b>NR</b>{" "}
-                              No Result ·{" "}
+                        <b>W</b> Won ·{" "}
 
-                              <b>NRR</b>{" "}
-                              Net Run Rate ·{" "}
-                            </>
-                          )}
+                        {(isFootball ||
+                          (!isCricket &&
+                            !usesPD)) && (
+                          <>
+                            <b>D</b> Draw ·{" "}
+                          </>
+                        )}
 
-                          {isFootball && (
-                            <>
-                              <b>GD</b>{" "}
-                              Goal Difference ·{" "}
-                            </>
-                          )}
+                        <b>L</b> Lost ·{" "}
 
-                          {usesPD && (
-                            <>
-                              <b>PF</b>{" "}
-                              Points For ·{" "}
+                        {isCricket && (
+                          <>
+                            <b>NR</b> No Result ·{" "}
+                            <b>NRR</b> Net Run Rate ·{" "}
+                          </>
+                        )}
 
-                              <b>PA</b>{" "}
-                              Points Against ·{" "}
+                        {isFootball && (
+                          <>
+                            <b>GD</b> Goal Difference ·{" "}
+                          </>
+                        )}
 
-                              <b>PD</b>{" "}
-                              Point Difference ·{" "}
-                            </>
-                          )}
+                        {usesPD && (
+                          <>
+                            <b>PF</b> Points For ·{" "}
+                            <b>PA</b> Points Against ·{" "}
+                            <b>PD</b> Point Difference ·{" "}
+                          </>
+                        )}
 
-                          <b>PTS</b>{" "}
-                          Competition Points
+                        <b>PTS</b> Competition Points
 
-                        </div>
-
-                      </>
+                      </div>
 
                     )}
 
@@ -4603,61 +4713,87 @@ export default function Home() {
             POINTS SYSTEM
         ==================================================== */}
 
-        <div className="card section">
+        <div className="section">
 
-          <div className="sectionHeader">
+          <div className="pointsSection">
 
-            <div>
+            <div className="sectionLabel">
+              HOW IT WORKS
+            </div>
 
-              <span className="eyebrow">
-                HOW THE RACE WORKS
-              </span>
+            <h2>
+              Points System
+            </h2>
 
-              <h2>
-                Points System
-              </h2>
+            <div className="pointsGrid">
 
-              <p>
-                Championship points awarded by finishing position.
-              </p>
+              <div className="pointRule">
+
+                <strong>
+                  TEAM
+                </strong>
+
+                <span>
+                  🥇 25
+                  {" · "}
+                  🥈 15
+                  {" · "}
+                  🥉 7
+                </span>
+
+              </div>
+
+              <div className="pointRule">
+
+                <strong>
+                  DOUBLES / MIXED
+                </strong>
+
+                <span>
+                  🥇 15
+                  {" · "}
+                  🥈 10
+                  {" · "}
+                  🥉 7
+                </span>
+
+              </div>
+
+              <div className="pointRule">
+
+                <strong>
+                  INDIVIDUAL
+                </strong>
+
+                <span>
+                  🥇 10
+                  {" · "}
+                  🥈 5
+                  {" · "}
+                  🥉 3
+                </span>
+
+              </div>
 
             </div>
 
           </div>
 
-          <div className="rules">
+        </div>
 
-            <div>
-              <b>
-                🏆 Team
-              </b>
+        {/* ====================================================
+            FOOTER
+        ==================================================== */}
 
-              <span>
-                🥇 25 · 🥈 15
-              </span>
-            </div>
+        <div className="footer">
 
-            <div>
-              <b>
-                🎾 Doubles / Mixed
-              </b>
+          <strong>
+            EUPHORIA 2026
+          </strong>
 
-              <span>
-                🥇 15 · 🥈 10 · 🥉 7
-              </span>
-            </div>
+          {" · "}
 
-            <div>
-              <b>
-                🏃 Individual
-              </b>
-
-              <span>
-                🥇 10 · 🥈 5 · 🥉 3
-              </span>
-            </div>
-
-          </div>
+          THE GAME IS ON.
 
         </div>
 
