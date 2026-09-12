@@ -4015,19 +4015,12 @@ export default function Home() {
                           )}
                         </div>
 
-                        <div
-                          className="clubLogoMini"
-                          style={{
-                            background:
-                              `${theme.color}18`,
-                            color:
-                              theme.color,
-                            border:
-                              `1px solid ${theme.color}35`,
-                          }}
-                        >
-                          {theme.short}
-                        </div>
+                        <div className="clubLogoMini">
+  <img
+    src={clubLogos[club]}
+    alt={`${club} logo`}
+  />
+</div>
 
                         <button
                           onClick={() =>
