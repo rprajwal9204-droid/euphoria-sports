@@ -3935,11 +3935,14 @@ display: block;
 
             {leaderboard.length > 0 && (
 
-              <div className="championLeader">
+              <div
+  className="championLeader"
+  onClick={() => setSelectedClub(leaderboard[0])}
+>
 
-                <div className="championMedal">
-                  🥇
-                </div>
+  <div className="championMedal">
+    🥇
+  </div>
 
                 <div>
 
