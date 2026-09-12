@@ -4709,77 +4709,7 @@ export default function Home() {
 
         </div>
 
-        {/* ====================================================
-            POINTS SYSTEM
-        ==================================================== */}
-
-        <div className="section">
-
-          <div className="pointsSection">
-
-            <div className="sectionLabel">
-              HOW IT WORKS
-            </div>
-
-            <h2>
-              Points System
-            </h2>
-
-            <div className="pointsGrid">
-
-              <div className="pointRule">
-
-                <strong>
-                  TEAM
-                </strong>
-
-                <span>
-                  🥇 25
-                  {" · "}
-                  🥈 15
-                  {" · "}
-                  🥉 7
-                </span>
-
-              </div>
-
-              <div className="pointRule">
-
-                <strong>
-                  DOUBLES / MIXED
-                </strong>
-
-                <span>
-                  🥇 15
-                  {" · "}
-                  🥈 10
-                  {" · "}
-                  🥉 7
-                </span>
-
-              </div>
-
-              <div className="pointRule">
-
-                <strong>
-                  INDIVIDUAL
-                </strong>
-
-                <span>
-                  🥇 10
-                  {" · "}
-                  🥈 5
-                  {" · "}
-                  🥉 3
-                </span>
-
-              </div>
-
-            </div>
-
-          </div>
-
-        </div>
+ 
 
         {/* ====================================================
             FOOTER
