@@ -3025,7 +3025,7 @@ export default function Home() {
 
         </div>
 
-        {/* ====================================================
+                {/* ====================================================
             POINTS SYSTEM
         ==================================================== */}
 
@@ -3038,37 +3038,25 @@ export default function Home() {
           <div className="rules">
 
             <div>
-              <b>
-                Team
-              </b>
-
-              <span>
-                🥇 25 · 🥈 15 
-              </span>
+              <b>Team</b>
+              <span>🥇 25 · 🥈 15 · 🥉 7</span>
             </div>
 
             <div>
-              <b>
-                Doubles / Mixed
-              </b>
-
-              <span>
-                🥇 15 · 🥈 10 · 🥉 7
-              </span>
+              <b>Doubles / Mixed</b>
+              <span>🥇 15 · 🥈 10 · 🥉 7</span>
             </div>
 
             <div>
-              <b>
-                Individual
-              </b>
-
-              <span>
-                🥇 10 · 🥈 5 · 🥉 3
-              </span>
+              <b>Individual</b>
+              <span>🥇 10 · 🥈 7 · 🥉 5</span>
             </div>
 
           </div>
 
         </div>
 
-    
+      </section>
+    </main>
+  );
+          }
