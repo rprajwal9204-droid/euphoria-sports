@@ -2798,21 +2798,19 @@ export default function Home() {
         }
 
         .clubLogoMini {
-          width: 28px;
-          height: 28px;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
 
-          display: grid;
-
-          place-items: center;
-
-          border-radius: 8px;
-
-          font-size: 7px;
-
-          font-weight: 950;
-
-          letter-spacing: .3px;
-        }
+.clubLogoMini img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
 
         .overallClubName {
           font-size: 11px;
