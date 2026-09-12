@@ -3043,7 +3043,7 @@ export default function Home() {
               </b>
 
               <span>
-                🥇 25 · 🥈 15 · 🥉 7
+                🥇 25 · 🥈 15 
               </span>
             </div>
 
@@ -3063,7 +3063,7 @@ export default function Home() {
               </b>
 
               <span>
-                🥇 10 · 🥈 7 · 🥉 5
+                🥇 10 · 🥈 5 · 🥉 3
               </span>
             </div>
 
@@ -3071,90 +3071,4 @@ export default function Home() {
 
         </div>
 
-        {/* ====================================================
-            EVENTS
-        ==================================================== */}
-
-        <div className="card section">
-
-          <h2>
-            Events
-          </h2>
-
-          {Object.entries(
-            eventGroups
-          ).map(
-            ([group, sports]) => (
-
-              <div
-                className="eventGroup"
-                key={group}
-              >
-
-                <h3>
-                  {group}
-                </h3>
-
-                <div className="pills">
-
-                  {sports.map(
-                    (sport) => (
-
-                      <span
-                        key={sport}
-                      >
-                        {sport}
-                      </span>
-
-                    )
-                  )}
-
-                </div>
-
-              </div>
-
-            )
-          )}
-
-          {events.length > 0 && (
-
-            <div
-              className="eventGroup"
-              style={{
-                marginTop:
-                  "24px",
-              }}
-            >
-
-              <h3>
-                Added Events
-              </h3>
-
-              <div className="pills">
-
-                {events.map(
-                  (event) => (
-
-                    <span
-                      key={event.id}
-                    >
-                      {event.name}
-                      {" · "}
-                      {event.gender}
-                    </span>
-
-                  )
-                )}
-
-              </div>
-
-            </div>
-
-          )}
-
-        </div>
-
-      </section>
-    </main>
-  );
-           }
+    
