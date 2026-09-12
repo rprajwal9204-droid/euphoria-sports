@@ -46,7 +46,13 @@ const clubTheme = {
     short: "PHX",
   },
 };
-
+const clubLogos = {
+  Falcons: "/logos/falconslogo.png",
+  Eagles: "/logos/eagleslogo.png",
+  Thunderbirds: "/logos/thunderbirdslogo.png",
+  Griffins: "/logos/griffinslogo.png",
+  Phoenix: "/logos/phoenixlogo.png",
+};
 /* ============================================================
    HELPERS
 ============================================================ */
