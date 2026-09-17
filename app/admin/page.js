@@ -1971,41 +1971,43 @@ EUPHORIA <span>ADMIN</span>
   >
     <h3>🏐 Volleyball Match Details</h3>
 
-{[1, 2, 3].map((setNumber) => (
-  <div key={setNumber}>
-    <h4>Set {setNumber}</h4>
+    {[1, 2, 3].map((setNumber) => (
+      <div key={setNumber} style={{ marginBottom: "16px" }}>
+        <h4>Set {setNumber}</h4>
 
-    <label>
-      Club A Score
-      <input
-        type="number"
-        min="0"
-        value={form[`set${setNumber}_a`] ?? ""}
-        onChange={(e) =>
-          setForm({
-            ...form,
-            [`set${setNumber}_a`]: e.target.value,
-          })
-        }
-      />
-    </label>
+        <label>
+          Club A Score
+          <input
+            type="number"
+            min="0"
+            value={form[`set${setNumber}_a`] ?? ""}
+            onChange={(e) =>
+              setForm({
+                ...form,
+                [`set${setNumber}_a`]: e.target.value,
+              })
+            }
+          />
+        </label>
 
-    <label>
-      Club B Score
-      <input
-        type="number"
-        min="0"
-        value={form[`set${setNumber}_b`] ?? ""}
-        onChange={(e) =>
-          setForm({
-            ...form,
-            [`set${setNumber}_b`]: e.target.value,
-          })
-        }
-      />
-    </label>
+        <label>
+          Club B Score
+          <input
+            type="number"
+            min="0"
+            value={form[`set${setNumber}_b`] ?? ""}
+            onChange={(e) =>
+              setForm({
+                ...form,
+                [`set${setNumber}_b`]: e.target.value,
+              })
+            }
+          />
+        </label>
+      </div>
+    ))}
   </div>
-))}
+
         ) : doublesSelected ? (
           <div
             style={{
