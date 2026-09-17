@@ -667,7 +667,6 @@ await load();
 /* =======================================================
 CREATE MATCH
 ======================================================= */
-
 async function addMatch(e) {
 e.preventDefault();
 setMsg("");
@@ -1160,9 +1159,9 @@ async function addMatch(e) {
 
     allotted_overs: "",
   }));
-
   await load();
-        }
+} 
+
 
 /* =======================================================
 UPDATE MATCH
