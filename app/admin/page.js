@@ -672,659 +672,364 @@ e.preventDefault();
 setMsg("");
 
 if (!form.event_id) {
-  setMsg("Please select an event.");
-  return;
+setMsg("Please select an event.");
+return;
 }
 
 if (!form.club_a_id) {
-  setMsg("Please select Club A.");
-  return;
+setMsg("Please select Club A.");
+return;
 }
 
 if (!form.club_b_id) {
-  setMsg("Please select Club B.");
-  return;
+setMsg("Please select Club B.");
+return;
 }
 
 if (form.club_a_id === form.club_b_id) {
-  setMsg("Club A and Club B must be different.");
-  return;
+setMsg("Club A and Club B must be different.");
+return;
 }
 
 if (cricketSelected) {
-  if (!form.batting_first_club_id) {
-    setMsg("Please select which club batted first.");
-    return;
-  }
-
-  if (
-    form.batting_first_club_id !== form.club_a_id &&
-    form.batting_first_club_id !== form.club_b_id
-  ) {
-    setMsg("Invalid batting-first club.");
-    return;
-  }
-
-  if (
-    form.innings_a_runs === "" ||
-    form.innings_b_runs === ""
-  ) {
-    setMsg("Please enter runs for both innings.");
-    return;
-  }
-
-  if (
-    form.innings_a_overs === "" ||
-    form.innings_b_overs === ""
-  ) {
-    setMsg("Please enter overs for both innings.");
-    return;
-  }
-
-  if (!validCricketOvers(form.innings_a_overs)) {
-    setMsg("Invalid Club A overs. Example: 20 or 19.3");
-    return;
-  }
-
-  if (!validCricketOvers(form.innings_b_overs)) {
-    setMsg("Invalid Club B overs. Example: 20 or 19.3");
-    return;
-  }
-
-  if (
-    form.allotted_overs !== "" &&
-    !validCricketOvers(form.allotted_overs)
-  ) {
-    setMsg("Invalid allotted overs. Example: 20");
-    return;
-  }
-
-  const runsA = Number(form.innings_a_runs);
-  const runsB = Number(form.innings_b_runs);
-
-  let winner = null;
-
-  if (form.status === "Final") {
-    if (runsA > runsB) {
-      winner = Number(form.club_a_id);
-    } else if (runsB > runsA) {
-      winner = Number(form.club_b_id);
-    }
-  }
-
-  const scoreA = displayCricketScore(
-    form.innings_a_runs,
-    form.innings_a_wickets,
-    form.innings_a_overs
-  );
-
-  const scoreB = displayCricketScore(
-    form.innings_b_runs,
-    form.innings_b_wickets,
-    form.innings_b_overs
-  );
-
-  const { error } = await supabase
-    .from("matches")
-    .insert({
-      event_id: Number(form.event_id),
-      club_a_id: Number(form.club_a_id),
-      club_b_id: Number(form.club_b_id),
-
-      score_a: scoreA,
-      score_b: scoreB,
-
-      status: form.status,
-
-      winner_club_id: winner,
-
-      batting_first_club_id:
-        Number(form.batting_first_club_id),
-
-      innings_a_runs:
-        Number(form.innings_a_runs),
-
-      innings_a_overs:
-        form.innings_a_overs,
-
-      innings_b_runs:
-        Number(form.innings_b_runs),
-
-      innings_b_overs:
-        form.innings_b_overs,
-
-      allotted_overs:
-        form.allotted_overs || null,
-    });
-
-  if (error) {
-    setMsg(error.message);
-    return;
-  }
-
-  setMsg("🏏 Cricket match created successfully.");
+if (!form.batting_first_club_id) {
+setMsg("Please select which club batted first.");
+return;
 }
 
-else if (doublesSelected) {
-async function addMatch(e) {
-  e.preventDefault();
-  setMsg("");
-
-  if (!form.event_id) {
-    setMsg("Please select an event.");
-    return;
-  }
-
-  if (!form.club_a_id) {
-    setMsg("Please select Club A.");
-    return;
-  }
-
-  if (!form.club_b_id) {
-    setMsg("Please select Club B.");
-    return;
-  }
-
-  if (form.club_a_id === form.club_b_id) {
-    setMsg("Club A and Club B must be different.");
-    return;
-  }
-
-  if (cricketSelected) {
-    if (!form.batting_first_club_id) {
-      setMsg("Please select which club batted first.");
-      return;
-    }
-
-    if (
-      form.batting_first_club_id !== form.club_a_id &&
-      form.batting_first_club_id !== form.club_b_id
-    ) {
-      setMsg("Invalid batting-first club.");
-      return;
-    }
-
-    if (
-      form.innings_a_runs === "" ||
-      form.innings_b_runs === ""
-    ) {
-      setMsg("Please enter runs for both innings.");
-      return;
-    }
-
-    if (
-      form.innings_a_overs === "" ||
-      form.innings_b_overs === ""
-    ) {
-      setMsg("Please enter overs for both innings.");
-      return;
-    }
-
-    if (!validCricketOvers(form.innings_a_overs)) {
-      setMsg("Invalid Club A overs. Example: 20 or 19.3");
-      return;
-    }
-
-    if (!validCricketOvers(form.innings_b_overs)) {
-      setMsg("Invalid Club B overs. Example: 20 or 19.3");
-      return;
-    }
-
-    if (
-      form.allotted_overs !== "" &&
-      !validCricketOvers(form.allotted_overs)
-    ) {
-      setMsg("Invalid allotted overs. Example: 20");
-      return;
-    }
-
-    const runsA = Number(form.innings_a_runs);
-    const runsB = Number(form.innings_b_runs);
-
-    let winner = null;
-
-    if (form.status === "Final") {
-      if (runsA > runsB) {
-        winner = Number(form.club_a_id);
-      } else if (runsB > runsA) {
-        winner = Number(form.club_b_id);
-      }
-    }
-
-    const scoreA = displayCricketScore(
-      form.innings_a_runs,
-      form.innings_a_wickets,
-      form.innings_a_overs
-    );
-
-    const scoreB = displayCricketScore(
-      form.innings_b_runs,
-      form.innings_b_wickets,
-      form.innings_b_overs
-    );
-
-    const { error } = await supabase
-      .from("matches")
-      .insert({
-        event_id: Number(form.event_id),
-        club_a_id: Number(form.club_a_id),
-        club_b_id: Number(form.club_b_id),
-        score_a: scoreA,
-        score_b: scoreB,
-        status: form.status,
-        winner_club_id: winner,
-        batting_first_club_id: Number(form.batting_first_club_id),
-        innings_a_runs: Number(form.innings_a_runs),
-        innings_a_overs: form.innings_a_overs,
-        innings_b_runs: Number(form.innings_b_runs),
-        innings_b_overs: form.innings_b_overs,
-        allotted_overs: form.allotted_overs || null,
-      });
-
-    if (error) {
-      setMsg(error.message);
-      return;
-    }
-
-    setMsg("🏏 Cricket match created successfully.");
-  } else if (volleyballSelected) {
-    const sets = [1, 2, 3].map((setNumber) => {
-      const aValue = form[`set${setNumber}_a`];
-      const bValue = form[`set${setNumber}_b`];
-
-      return {
-        setNumber,
-        a: aValue === "" || aValue == null ? null : Number(aValue),
-        b: bValue === "" || bValue == null ? null : Number(bValue),
-      };
-    });
-
-    let setsA = 0;
-    let setsB = 0;
-    let winner = null;
-    let playedSets = 0;
-
-    for (const set of sets) {
-      const { setNumber, a, b } = set;
-
-      if (a === null && b === null) {
-        continue;
-      }
-
-      if (a === null || b === null) {
-        setMsg(`Please enter both scores for Set ${setNumber}.`);
-        return;
-      }
-
-      if (
-        !Number.isInteger(a) ||
-        !Number.isInteger(b) ||
-        a < 0 ||
-        b < 0
-      ) {
-        setMsg(`Invalid score in Set ${setNumber}.`);
-        return;
-      }
-
-      if (setsA === 2 || setsB === 2) {
-        setMsg("A match cannot continue after a team wins 2 sets.");
-        return;
-      }
-
-      const target = setNumber === 3 ? 25 : 15;
-      const high = Math.max(a, b);
-      const low = Math.min(a, b);
-
-      if (high < target || high - low < 2) {
-        setMsg(
-          `Set ${setNumber} must be won at ${target} points or more, with a 2-point lead.`
-        );
-        return;
-      }
-
-      if (a === b) {
-        setMsg(`Set ${setNumber} cannot end in a tie.`);
-        return;
-      }
-
-      if (a > b) {
-        setsA++;
-      } else {
-        setsB++;
-      }
-
-      playedSets++;
-    }
-
-    if (form.status === "Final") {
-      if (setsA !== 2 && setsB !== 2) {
-        setMsg("A Final volleyball match must have a winner by 2 sets to 0 or 2 sets to 1.");
-        return;
-      }
-
-      winner =
-        setsA === 2
-          ? Number(form.club_a_id)
-          : Number(form.club_b_id);
-    }
-
-    if (form.status !== "Final" && playedSets === 0) {
-      // Upcoming match: scores can remain blank.
-    }
-
-    const scoreA = sets
-      .filter((set) => set.a !== null && set.b !== null)
-      .map((set) => set.a)
-      .join(" - ");
-
-    const scoreB = sets
-      .filter((set) => set.a !== null && set.b !== null)
-      .map((set) => set.b)
-      .join(" - ");
-
-    const { error } = await supabase
-      .from("matches")
-      .insert({
-        event_id: Number(form.event_id),
-        club_a_id: Number(form.club_a_id),
-        club_b_id: Number(form.club_b_id),
-
-        score_a: scoreA || null,
-        score_b: scoreB || null,
-        status: form.status,
-        winner_club_id: winner,
-
-        set1_a: sets[0].a,
-        set1_b: sets[0].b,
-        set2_a: sets[1].a,
-        set2_b: sets[1].b,
-        set3_a: sets[2].a,
-        set3_b: sets[2].b,
-      });
-
-    if (error) {
-      setMsg(error.message);
-      return;
-    }
-
-    setMsg("🏐 Volleyball match created successfully.");
-  } else if (doublesSelected) {
-    if (
-      !form.player_a1.trim() ||
-      !form.player_a2.trim() ||
-      !form.player_b1.trim() ||
-      !form.player_b2.trim()
-    ) {
-      setMsg("Please enter all 4 player names.");
-      return;
-    }
-
-    const playersA =
-      `${form.player_a1.trim()} + ${form.player_a2.trim()}`;
-
-    const playersB =
-      `${form.player_b1.trim()} + ${form.player_b2.trim()}`;
-
-    const { error } = await supabase
-      .from("matches")
-      .insert({
-        event_id: Number(form.event_id),
-        club_a_id: Number(form.club_a_id),
-        club_b_id: Number(form.club_b_id),
-        score_a: playersA,
-        score_b: playersB,
-        status: form.status,
-        winner_club_id: null,
-      });
-
-    if (error) {
-      setMsg(error.message);
-      return;
-    }
-
-    setMsg("👥 Doubles match created successfully.");
-  } else {
-    let winner = null;
-
-    if (
-      form.status === "Final" &&
-      form.score_a !== "" &&
-      form.score_b !== ""
-    ) {
-      const a = Number(form.score_a);
-      const b = Number(form.score_b);
-
-      if (
-        Number.isFinite(a) &&
-        Number.isFinite(b)
-      ) {
-        if (a > b) {
-          winner = Number(form.club_a_id);
-        } else if (b > a) {
-          winner = Number(form.club_b_id);
-        }
-      }
-    }
-
-    const { error } = await supabase
-      .from("matches")
-      .insert({
-        event_id: Number(form.event_id),
-        club_a_id: Number(form.club_a_id),
-        club_b_id: Number(form.club_b_id),
-        score_a: form.score_a || null,
-        score_b: form.score_b || null,
-        status: form.status,
-        winner_club_id: winner,
-      });
-
-    if (error) {
-      setMsg(error.message);
-      return;
-    }
-
-    setMsg("✅ Match created successfully.");
-  }
-
-  setForm((old) => ({
-    ...old,
-
-    club_a_id: "",
-    club_b_id: "",
-
-    score_a: "",
-    score_b: "",
-
-    set1_a: "",
-    set1_b: "",
-    set2_a: "",
-    set2_b: "",
-    set3_a: "",
-    set3_b: "",
-
-    player_a1: "",
-    player_a2: "",
-    player_b1: "",
-    player_b2: "",
-
-    batting_first_club_id: "",
-
-    innings_a_runs: "",
-    innings_a_wickets: "",
-    innings_a_overs: "",
-
-    innings_b_runs: "",
-    innings_b_wickets: "",
-    innings_b_overs: "",
-
-    allotted_overs: "",
-  }));
-  await load();
-} 
-
-
-/* =======================================================
-UPDATE MATCH
-======================================================= */
-
-async function updateMatch(id, patch) {
-setMsg("");
-
-const { error } = await supabase
-  .from("matches")
-  .update(patch)
-  .eq("id", id);
-
-if (error) {
-  setMsg(error.message);
-  return;
-}
-
-setMsg("✅ Match updated.");
-
-await load();
-
-}
-
-/* =======================================================
-SAVE CRICKET MATCH
-======================================================= */
-
-async function saveCricketMatch(match) {
-setMsg("");
-
-const runsA =
-  document.getElementById(
-    `cricket-runs-a-${match.id}`
-  )?.value;
-
-const wicketsA =
-  document.getElementById(
-    `cricket-wickets-a-${match.id}`
-  )?.value;
-
-const oversA =
-  document.getElementById(
-    `cricket-overs-a-${match.id}`
-  )?.value;
-
-const runsB =
-  document.getElementById(
-    `cricket-runs-b-${match.id}`
-  )?.value;
-
-const wicketsB =
-  document.getElementById(
-    `cricket-wickets-b-${match.id}`
-  )?.value;
-
-const oversB =
-  document.getElementById(
-    `cricket-overs-b-${match.id}`
-  )?.value;
-
-const allotted =
-  document.getElementById(
-    `cricket-allotted-${match.id}`
-  )?.value;
-
-const battingFirst =
-  document.getElementById(
-    `cricket-batting-first-${match.id}`
-  )?.value;
-
-const status =
-  document.getElementById(
-    `status-${match.id}`
-  )?.value;
-
-if (!battingFirst) {
-  setMsg("Please select who batted first.");
-  return;
-}
-
+if (  
+  form.batting_first_club_id !== form.club_a_id &&  
+  form.batting_first_club_id !== form.club_b_id  
+) {  
+  setMsg("Invalid batting-first club.");  
+  return;  
+}  
+
+if (  
+  form.innings_a_runs === "" ||  
+  form.innings_b_runs === ""  
+) {  
+  setMsg("Please enter runs for both innings.");  
+  return;  
+}  
+
+if (  
+  form.innings_a_overs === "" ||  
+  form.innings_b_overs === ""  
+) {  
+  setMsg("Please enter overs for both innings.");  
+  return;  
+}  
+
+if (!validCricketOvers(form.innings_a_overs)) {  
+  setMsg("Invalid Club A overs. Example: 20 or 19.3");  
+  return;  
+}  
+
+if (!validCricketOvers(form.innings_b_overs)) {  
+  setMsg("Invalid Club B overs. Example: 20 or 19.3");  
+  return;  
+}  
+
+if (  
+  form.allotted_overs !== "" &&  
+  !validCricketOvers(form.allotted_overs)  
+) {  
+  setMsg("Invalid allotted overs. Example: 20");  
+  return;  
+}  
+
+const runsA = Number(form.innings_a_runs);  
+const runsB = Number(form.innings_b_runs);  
+
+let winner = null;  
+
+if (form.status === "Final") {  
+  if (runsA > runsB) {  
+    winner = Number(form.club_a_id);  
+  } else if (runsB > runsA) {  
+    winner = Number(form.club_b_id);  
+  }  
+}  
+
+const scoreA = displayCricketScore(  
+  form.innings_a_runs,  
+  form.innings_a_wickets,  
+  form.innings_a_overs  
+);  
+
+const scoreB = displayCricketScore(  
+  form.innings_b_runs,  
+  form.innings_b_wickets,  
+  form.innings_b_overs  
+);  
+
+const { error } = await supabase  
+  .from("matches")  
+  .insert({  
+    event_id: Number(form.event_id),  
+    club_a_id: Number(form.club_a_id),  
+    club_b_id: Number(form.club_b_id),  
+    score_a: scoreA,  
+    score_b: scoreB,  
+    status: form.status,  
+    winner_club_id: winner,  
+    batting_first_club_id: Number(form.batting_first_club_id),  
+    innings_a_runs: Number(form.innings_a_runs),  
+    innings_a_overs: form.innings_a_overs,  
+    innings_b_runs: Number(form.innings_b_runs),  
+    innings_b_overs: form.innings_b_overs,  
+    allotted_overs: form.allotted_overs || null,  
+  });  
+
+if (error) {  
+  setMsg(error.message);  
+  return;  
+}  
+
+setMsg("🏏 Cricket match created successfully.");
+
+} else if (volleyballSelected) {
+const sets = [1, 2, 3].map((setNumber) => {
+const aValue = form[set${setNumber}_a];
+const bValue = form[set${setNumber}_b];
+
+return {  
+    setNumber,  
+    a: aValue === "" || aValue == null ? null : Number(aValue),  
+    b: bValue === "" || bValue == null ? null : Number(bValue),  
+  };  
+});  
+
+let setsA = 0;  
+let setsB = 0;  
+let winner = null;  
+let playedSets = 0;  
+
+for (const set of sets) {  
+  const { setNumber, a, b } = set;  
+
+  if (a === null && b === null) {  
+    continue;  
+  }  
+
+  if (a === null || b === null) {  
+    setMsg(`Please enter both scores for Set ${setNumber}.`);  
+    return;  
+  }  
+
+  if (  
+    !Number.isInteger(a) ||  
+    !Number.isInteger(b) ||  
+    a < 0 ||  
+    b < 0  
+  ) {  
+    setMsg(`Invalid score in Set ${setNumber}.`);  
+    return;  
+  }  
+
+  if (setsA === 2 || setsB === 2) {  
+    setMsg("A match cannot continue after a team wins 2 sets.");  
+    return;  
+  }  
+
+  const target = setNumber === 3 ? 25 : 15;  
+  const high = Math.max(a, b);  
+  const low = Math.min(a, b);  
+
+  if (high < target || high - low < 2) {  
+    setMsg(  
+      `Set ${setNumber} must be won at ${target} points or more, with a 2-point lead.`  
+    );  
+    return;  
+  }  
+
+  if (a === b) {  
+    setMsg(`Set ${setNumber} cannot end in a tie.`);  
+    return;  
+  }  
+
+  if (a > b) {  
+    setsA++;  
+  } else {  
+    setsB++;  
+  }  
+
+  playedSets++;  
+}  
+
+if (form.status === "Final") {  
+  if (setsA !== 2 && setsB !== 2) {  
+    setMsg("A Final volleyball match must have a winner by 2 sets to 0 or 2 sets to 1.");  
+    return;  
+  }  
+
+  winner =  
+    setsA === 2  
+      ? Number(form.club_a_id)  
+      : Number(form.club_b_id);  
+}  
+
+if (form.status !== "Final" && playedSets === 0) {  
+  // Upcoming match: scores can remain blank.  
+}  
+
+const scoreA = sets  
+  .filter((set) => set.a !== null && set.b !== null)  
+  .map((set) => set.a)  
+  .join(" - ");  
+
+const scoreB = sets  
+  .filter((set) => set.a !== null && set.b !== null)  
+  .map((set) => set.b)  
+  .join(" - ");  
+
+const { error } = await supabase  
+  .from("matches")  
+  .insert({  
+    event_id: Number(form.event_id),  
+    club_a_id: Number(form.club_a_id),  
+    club_b_id: Number(form.club_b_id),  
+
+    score_a: scoreA || null,  
+    score_b: scoreB || null,  
+    status: form.status,  
+    winner_club_id: winner,  
+
+    set1_a: sets[0].a,  
+    set1_b: sets[0].b,  
+    set2_a: sets[1].a,  
+    set2_b: sets[1].b,  
+    set3_a: sets[2].a,  
+    set3_b: sets[2].b,  
+  });  
+
+if (error) {  
+  setMsg(error.message);  
+  return;  
+}  
+
+setMsg("🏐 Volleyball match created successfully.");
+
+} else if (doublesSelected) {
 if (
-  runsA === "" ||
-  runsB === "" ||
-  oversA === "" ||
-  oversB === ""
+!form.player_a1.trim() ||
+!form.player_a2.trim() ||
+!form.player_b1.trim() ||
+!form.player_b2.trim()
 ) {
-  setMsg(
-    "Please enter runs and overs for both clubs."
-  );
-  return;
+setMsg("Please enter all 4 player names.");
+return;
 }
 
-if (!validCricketOvers(oversA)) {
-  setMsg("Invalid Club A overs.");
-  return;
-}
+const playersA =  
+  `${form.player_a1.trim()} + ${form.player_a2.trim()}`;  
 
-if (!validCricketOvers(oversB)) {
-  setMsg("Invalid Club B overs.");
-  return;
-}
+const playersB =  
+  `${form.player_b1.trim()} + ${form.player_b2.trim()}`;  
 
+const { error } = await supabase  
+  .from("matches")  
+  .insert({  
+    event_id: Number(form.event_id),  
+    club_a_id: Number(form.club_a_id),  
+    club_b_id: Number(form.club_b_id),  
+    score_a: playersA,  
+    score_b: playersB,  
+    status: form.status,  
+    winner_club_id: null,  
+  });  
+
+if (error) {  
+  setMsg(error.message);  
+  return;  
+}  
+
+setMsg("👥 Doubles match created successfully.");
+
+} else {
 let winner = null;
 
-if (status === "Final") {
-  if (Number(runsA) > Number(runsB)) {
-    winner = Number(match.club_a_id);
-  } else if (Number(runsB) > Number(runsA)) {
-    winner = Number(match.club_b_id);
-  }
+if (  
+  form.status === "Final" &&  
+  form.score_a !== "" &&  
+  form.score_b !== ""  
+) {  
+  const a = Number(form.score_a);  
+  const b = Number(form.score_b);  
+
+  if (  
+    Number.isFinite(a) &&  
+    Number.isFinite(b)  
+  ) {  
+    if (a > b) {  
+      winner = Number(form.club_a_id);  
+    } else if (b > a) {  
+      winner = Number(form.club_b_id);  
+    }  
+  }  
+}  
+
+const { error } = await supabase  
+  .from("matches")  
+  .insert({  
+    event_id: Number(form.event_id),  
+    club_a_id: Number(form.club_a_id),  
+    club_b_id: Number(form.club_b_id),  
+    score_a: form.score_a || null,  
+    score_b: form.score_b || null,  
+    status: form.status,  
+    winner_club_id: winner,  
+  });  
+
+if (error) {  
+  setMsg(error.message);  
+  return;  
+}  
+
+setMsg("✅ Match created successfully.");
+
 }
 
-const scoreA = displayCricketScore(
-  runsA,
-  wicketsA,
-  oversA
-);
+setForm((old) => ({
+...old,
 
-const scoreB = displayCricketScore(
-  runsB,
-  wicketsB,
-  oversB
-);
+club_a_id: "",  
+club_b_id: "",  
 
-const { error } = await supabase
-  .from("matches")
-  .update({
-    score_a: scoreA,
-    score_b: scoreB,
-    status,
-    winner_club_id: winner,
+score_a: "",  
+score_b: "",  
 
-    batting_first_club_id:
-      Number(battingFirst),
+set1_a: "",  
+set1_b: "",  
+set2_a: "",  
+set2_b: "",  
+set3_a: "",  
+set3_b: "",  
 
-    innings_a_runs:
-      Number(runsA),
+player_a1: "",  
+player_a2: "",  
+player_b1: "",  
+player_b2: "",  
 
-    innings_a_overs:
-      oversA,
+batting_first_club_id: "",  
 
-    innings_b_runs:
-      Number(runsB),
+innings_a_runs: "",  
+innings_a_wickets: "",  
+innings_a_overs: "",  
 
-    innings_b_overs:
-      oversB,
+innings_b_runs: "",  
+innings_b_wickets: "",  
+innings_b_overs: "",  
 
-    allotted_overs:
-      allotted || null,
-  })
-  .eq("id", match.id);
+allotted_overs: "",
 
-if (error) {
-  setMsg(error.message);
-  return;
-}
-
-setMsg("🏏 Cricket match updated.");
+}));
 
 await load();
-
 }
+
+
 
 /* =======================================================
 SAVE DOUBLES MATCH
