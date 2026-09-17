@@ -483,6 +483,9 @@ isCricketEvent(selectedEvent);
 
 const doublesSelected =
 isDoublesEvent(selectedEvent);
+    
+const volleyballSelected =
+selectedEvent?.name?.toLowerCase().includes("volleyball");
 
 /* =======================================================
 LOGIN
