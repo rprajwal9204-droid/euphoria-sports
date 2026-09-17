@@ -1960,6 +1960,18 @@ EUPHORIA <span>ADMIN</span>
               />
             </label>
           </div>
+) : volleyballSelected ? (
+  <div
+    style={{
+      marginTop: "20px",
+      padding: "18px",
+      border: "1px solid rgba(255,255,255,.15)",
+      borderRadius: "12px",
+    }}
+  >
+    <h3>🏐 Volleyball Match Details</h3>
+    {/* Volleyball set-score inputs go here in the next step */}
+  </div>
         ) : doublesSelected ? (
           <div
             style={{
