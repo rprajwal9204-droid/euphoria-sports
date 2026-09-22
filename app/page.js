@@ -354,7 +354,7 @@ function getSportPoints(sport, result) {
 
   if (name === "basketball") {
     if (result === "win") return 2;
-    if (result === "draw") return 0;
+    if (result === "loss") return 0;
     return 0;
   }
 
