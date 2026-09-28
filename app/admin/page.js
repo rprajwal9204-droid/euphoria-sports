@@ -84,7 +84,7 @@ const o =
   overs === undefined ||
   overs === ""
     ? ""
-    : `(${overs} ov)`;
+    : ` (${overs} ov)`;
 
 return `${r}${w}${o}`;
 } 
