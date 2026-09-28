@@ -4577,10 +4577,10 @@ display: block;
       theme.color,
   }}
 >
-  <img
-    src={clubLogos[club]}
-    alt={`${club} logo`}
-  />
+<img
+  src={clubLogos[row.name]}
+  alt={`${row.name} logo`}
+/>
 </div>
 
                                 <div>
