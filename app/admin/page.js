@@ -73,21 +73,20 @@ const r = Number(runs);
 if (!Number.isFinite(r)) return "";
 
 const w =
-wickets === null ||
-wickets === undefined ||
-wickets === ""
-? ""
-: "/${wickets}";
+  wickets === null ||
+  wickets === undefined ||
+  wickets === ""
+    ? ""
+    : `/${wickets}`;
 
 const o =
-overs === null ||
-overs === undefined ||
-overs === ""
-? ""
-: " (${overs} ov)";
+  overs === null ||
+  overs === undefined ||
+  overs === ""
+    ? ""
+    : ` (${overs} ov)`;
 
-return "${r}${w}${o}";
-}
+return `${r}${w}${o}`;
 
 /* =========================================================
 COLLAPSIBLE SECTION
@@ -791,8 +790,8 @@ setMsg("🏏 Cricket match created successfully.");
 
 } else if (volleyballSelected) {
 const sets = [1, 2, 3].map((setNumber) => {
-const aValue = form['set${setNumber}_a' ];
-const bValue = form['set${setNumber}_b' ];
+const aValue = form[`set${setNumber}_a` ];
+const bValue = form[`set${setNumber}_b` ];
 
 return {  
     setNumber,  
