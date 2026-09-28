@@ -791,8 +791,8 @@ setMsg("🏏 Cricket match created successfully.");
 
 } else if (volleyballSelected) {
 const sets = [1, 2, 3].map((setNumber) => {
-const aValue = form[set${setNumber}_a];
-const bValue = form[set${setNumber}_b];
+const aValue = form['set${setNumber}_a' ];
+const bValue = form['set${setNumber}_b' ];
 
 return {  
     setNumber,  
