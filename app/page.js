@@ -1292,6 +1292,29 @@ export default function Home() {
 
     const themeB =
       getClubTheme(clubB);
+     const isCricket =
+  sport.toLowerCase().includes("cricket");
+
+const cricketStats =
+  isCricket
+    ? getCricketStats(match)
+    : null;
+
+const cricketScoreA =
+  cricketStats &&
+  cricketStats.battingFirst === clubAId
+    ? `${cricketStats.firstRuns ?? 0}/${match.innings1_wickets ?? 0} (${match.innings1_overs ?? 0} ov)`
+    : cricketStats
+    ? `${cricketStats.secondRuns ?? 0}/${match.innings2_wickets ?? 0} (${match.innings2_overs ?? 0} ov)`
+    : null;
+
+const cricketScoreB =
+  cricketStats &&
+  cricketStats.battingFirst === clubBId
+    ? `${cricketStats.firstRuns ?? 0}/${match.innings1_wickets ?? 0} (${match.innings1_overs ?? 0} ov)`
+    : cricketStats
+    ? `${cricketStats.secondRuns ?? 0}/${match.innings2_wickets ?? 0} (${match.innings2_overs ?? 0} ov)`
+    : null;
 
     return (
       <article
@@ -1392,7 +1415,9 @@ export default function Home() {
     ?.toLowerCase()
     .includes("cricket")
     ? `${match.runs_a ?? 0}/${match.wickets_a ?? 0} (${match.overs_a ?? 0} ov)`
-    : match.score_a ?? "—"}
+   : isCricket
+  ? cricketScoreA
+  : match.score_a ?? "—"}
 </strong>
 
           </div>
@@ -1428,7 +1453,9 @@ export default function Home() {
     ?.toLowerCase()
     .includes("cricket")
     ? `${match.runs_b ?? 0}/${match.wickets_b ?? 0} (${match.overs_b ?? 0} ov)`
-    : match.score_b ?? "—"}
+    : {isCricket
+  ? cricketScoreB
+  : match.score_b ?? "—"}
 </strong>
 
           </div>
