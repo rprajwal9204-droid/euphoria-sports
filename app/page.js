@@ -3189,7 +3189,13 @@ display: block;
 
           font-weight: 950;
         }
-
+.mobileClubBadge img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  border-radius: 6px;
+}
         .mobileClubName {
           font-size: 10px;
 
