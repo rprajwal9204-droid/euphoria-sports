@@ -1423,10 +1423,13 @@ export default function Home() {
               {clubB}
             </span>
 
-            <strong className="teamScore">
-              {match.score_b ??
-                "—"}
-            </strong>
+      <strong className="teamScore">
+  {match.events?.name
+    ?.toLowerCase()
+    .includes("cricket")
+    ? `${match.runs_b ?? 0}/${match.wickets_b ?? 0} (${match.overs_b ?? 0} ov)`
+    : match.score_b ?? "—"}
+</strong>
 
           </div>
 
