@@ -4683,6 +4683,10 @@ display: block;
   </span>
 )}
 
+</div>
+
+<div className="mobilePoints">
+
                                 </div>
 
                                 <div className="mobilePoints">
