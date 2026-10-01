@@ -1410,14 +1410,10 @@ const cricketScoreB =
               {clubA}
             </span>
 
-         <strong className="teamScore">
-  {match.events?.name
-    ?.toLowerCase()
-    .includes("cricket")
-    ? `${match.runs_a ?? 0}/${match.wickets_a ?? 0} (${match.overs_a ?? 0} ov)`
-            {isCricket
-  ? cricketScoreA
-  : match.score_a ?? "—"}
+  <strong className="teamScore">
+  {isCricket
+    ? cricketScoreA
+    : match.score_a ?? "—"}
 </strong>
 
           </div>
@@ -1448,14 +1444,10 @@ const cricketScoreB =
               {clubB}
             </span>
 
-      <strong className="teamScore">
-  {match.events?.name
-    ?.toLowerCase()
-    .includes("cricket")
-    ? `${match.runs_b ?? 0}/${match.wickets_b ?? 0} (${match.overs_b ?? 0} ov)`
-    {isCricket
-  ? cricketScoreB
-  : match.score_b ?? "—"}
+<strong className="teamScore">
+  {isCricket
+    ? cricketScoreB
+    : match.score_b ?? "—"}
 </strong>
 
           </div>
