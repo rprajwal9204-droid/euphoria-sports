@@ -4676,12 +4676,6 @@ display: block;
   </span>
 )}
 
-{isCricket && (
-  <span>
-    NRR{" "}
-    {formatNRR(row.nrr)}
-  </span>
-)}
 
 </div>
 
