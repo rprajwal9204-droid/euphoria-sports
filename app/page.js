@@ -173,6 +173,13 @@ function getCricketStats(match) {
   let secondOvers = cricketOversToNumber(
     match.innings2_overs
   );
+   let firstWickets = Number(
+  match.innings1_wickets ?? 0
+);
+
+let secondWickets = Number(
+  match.innings2_wickets ?? 0
+);
 
   if (firstRuns === null) {
     firstRuns = numericScore(
@@ -232,6 +239,8 @@ function getCricketStats(match) {
     secondRuns,
     firstOvers,
     secondOvers,
+   firstwickets, 
+     secondwickets, 
   };
 }
 
