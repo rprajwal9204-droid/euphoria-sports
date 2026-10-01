@@ -4679,10 +4679,6 @@ display: block;
 
 </div>
 
-<div className="mobilePoints">
-
-                                </div>
-
                                 <div className="mobilePoints">
 
                                   {
