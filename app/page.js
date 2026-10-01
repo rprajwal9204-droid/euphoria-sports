@@ -1415,7 +1415,7 @@ const cricketScoreB =
     ?.toLowerCase()
     .includes("cricket")
     ? `${match.runs_a ?? 0}/${match.wickets_a ?? 0} (${match.overs_a ?? 0} ov)`
-   : isCricket
+            {isCricket
   ? cricketScoreA
   : match.score_a ?? "—"}
 </strong>
@@ -1453,7 +1453,7 @@ const cricketScoreB =
     ?.toLowerCase()
     .includes("cricket")
     ? `${match.runs_b ?? 0}/${match.wickets_b ?? 0} (${match.overs_b ?? 0} ov)`
-    : {isCricket
+    {isCricket
   ? cricketScoreB
   : match.score_b ?? "—"}
 </strong>
