@@ -4670,16 +4670,18 @@ display: block;
                                     </span>
 
                                     {isCricket && (
-                                      <span>
-                                        NR
-                                        {" "}
-                                        {
-                                          row.noResults
-                                        }
-                                      </span>
-                                    )}
+  <span>
+    NR{" "}
+    {row.noResults}
+  </span>
+)}
 
-                                  </div>
+{isCricket && (
+  <span>
+    NRR{" "}
+    {formatNRR(row.nrr)}
+  </span>
+)}
 
                                 </div>
 
